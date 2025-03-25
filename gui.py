@@ -213,13 +213,24 @@ class PasswordManagerGUI:
         if not self.verify_admin_password_gui(admin_pw):
             return
 
-        stored_data = recover_password(username, site, admin_pw)
-        if stored_data:
-            messagebox.showinfo("Éxito", "Contraseña recuperada exitosamente (se muestra en consola)")
-            print(f"Usuario: {username}, Sitio: {site}, Salt: {stored_data[0]}, Hash: {stored_data[1]}")
+        stored_password = recover_password(username, site, admin_pw)
+        if stored_password:
+            # Mostrar la contraseña recuperada en un diálogo seguro
+            messagebox.showinfo("Contraseña Recuperada", 
+                            f"Contraseña para --{username}-- en --{site}-- recuperada exitosamente.\n"
+                            f"Contraseña: {stored_password}\n\n"
+                            "La contraseña se ha copiado al portapapeles para su uso.")
+        
+            # Copiar al portapapeles para mayor seguridad
+            self.root.clipboard_clear()
+            self.root.clipboard_append(stored_password)
+            
+            # Limpiar los campos de entrada
+            self.rec_user_entry.delete(0, tk.END)
+            self.rec_site_entry.delete(0, tk.END)
+            self.admin_pass_entry.delete(0, tk.END)
         else:
             messagebox.showerror("Error", "No se encontró la credencial o la contraseña de administrador es incorrecta")
-
 
     def list_passwords(self):
         """Lista todas las credenciales almacenadas"""

@@ -34,13 +34,12 @@ def init_database(admin_password):
         conn = sqlite3.connect(PASSWD_DB)
         c = conn.cursor()
 
-        # Tabla de credenciales con salting
+        # Tabla de credenciales con cifrado
         c.execute('''CREATE TABLE credentials
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT NOT NULL,
                       site TEXT NOT NULL,
-                      salt BLOB NOT NULL,
-                      hashed_password BLOB NOT NULL,
+                      encrypted_password TEXT NOT NULL,
                       UNIQUE(username, site))''')
 
         # Tabla de intentos fallidos
@@ -58,49 +57,106 @@ def init_database(admin_password):
         # Guardar credenciales admin
         save_admin_credentials(admin_password)
 
-def generate_salt():
-    """Genera un salt aleatorio"""
-    return os.urandom(SALT_SIZE)
+def get_cipher_key():
+    """Genera o recupera la clave de cifrado"""
+    ensure_passwd_dir()
+    if os.path.exists(SECRET_KEY_FILE):
+        with open(SECRET_KEY_FILE, "rb") as f:
+            return f.read()
+    else:
+        key = base64.urlsafe_b64encode(os.urandom(32))
+        with open(SECRET_KEY_FILE, "wb") as f:
+            f.write(key)
+        os.chmod(SECRET_KEY_FILE, 0o600)
+        return key
 
-def hash_password(password, salt):
-    """Hashea la contraseña con PBKDF2 y SHA-512"""
-    return hashlib.pbkdf2_hmac('sha512', password.encode(), salt, PBKDF2_ITERATIONS)
+# Configuración de cifrado
+KEY = get_cipher_key()
+cipher_suite = Fernet(KEY)
+
+def encrypt_password(password):
+    """Cifra una contraseña"""
+    return cipher_suite.encrypt(password.encode()).decode()
+
+def decrypt_password(encrypted_password):
+    """Descifra una contraseña"""
+    return cipher_suite.decrypt(encrypted_password.encode()).decode()
 
 def save_admin_credentials(password):
-    """Guarda las credenciales admin con hash y salting"""
-    salt = generate_salt()
-    hashed_pw = hash_password(password, salt)
+    """Guarda las credenciales admin de forma segura"""
+    salt = os.urandom(16)
+    hashed_pw = hashlib.pbkdf2_hmac(
+        'sha512',
+        password.encode(),
+        salt,
+        PBKDF2_ITERATIONS
+    )
     with open(ADMIN_CREDENTIALS_FILE, 'wb') as f:
         f.write(salt + hashed_pw)
     os.chmod(ADMIN_CREDENTIALS_FILE, 0o600)
 
 def verify_admin_password(attempt):
     """Verifica la contraseña admin con protección contra fuerza bruta"""
+    # Verificar estado de bloqueo
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+    c.execute("SELECT attempts, locked_until FROM login_attempts WHERE id = 1")
+    attempts, locked_until = c.fetchone()
+
+    if locked_until and datetime.now() < datetime.fromisoformat(locked_until):
+        conn.close()
+        return False
+
+    # Verificar contraseña
     try:
         with open(ADMIN_CREDENTIALS_FILE, 'rb') as f:
             data = f.read()
-            salt = data[:SALT_SIZE]
-            stored_hash = data[SALT_SIZE:]
-            attempt_hash = hash_password(attempt, salt)
+            salt = data[:16]
+            stored_hash = data[16:]
+            attempt_hash = hashlib.pbkdf2_hmac(
+                'sha512',
+                attempt.encode(),
+                salt,
+                PBKDF2_ITERATIONS
+            )
 
-            return hmac.compare_digest(stored_hash, attempt_hash)
+            if hmac.compare_digest(stored_hash, attempt_hash):
+                # Resetear intentos si es correcta
+                c.execute("UPDATE login_attempts SET attempts = 0, locked_until = NULL WHERE id = 1")
+                conn.commit()
+                conn.close()
+                return True
     except FileNotFoundError:
-        return False
+        pass
+
+    # Manejar intento fallido
+    attempts += 1
+    if attempts >= MAX_LOGIN_ATTEMPTS:
+        locked_until = datetime.now() + timedelta(seconds=LOCKOUT_TIME)
+        c.execute("UPDATE login_attempts SET attempts = ?, last_attempt = ?, locked_until = ? WHERE id = 1",
+                 (attempts, datetime.now(), locked_until))
+    else:
+        c.execute("UPDATE login_attempts SET attempts = ?, last_attempt = ? WHERE id = 1",
+                 (attempts, datetime.now()))
+
+    conn.commit()
+    conn.close()
+    return False
 
 def store_password(username, site, password):
-    """Almacena una contraseña con hash y salting"""
-    salt = generate_salt()
-    hashed_pw = hash_password(password, salt)
-
+    """Almacena una nueva contraseña o actualiza una existente"""
+    encrypted_pw = encrypt_password(password)
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
 
     try:
-        c.execute("INSERT INTO credentials (username, site, salt, hashed_password) VALUES (?, ?, ?, ?)",
-                 (username, site, salt, hashed_pw))
+        # Intenta insertar primero
+        c.execute("INSERT INTO credentials (username, site, encrypted_password) VALUES (?, ?, ?)",
+                 (username, site, encrypted_pw))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
+        # Si ya existe, pregunta si se desea actualizar
         conn.rollback()
         return False
     finally:
@@ -283,9 +339,12 @@ def recover_password(username, site, admin_password):
     return None
 
 def list_credentials(admin_password):
+    """
+    Lista credenciales para la interfaz gráfica
+    Devuelve una lista de tuplas con (usuario, sitio)
+    """
     if not verify_admin_password(admin_password):
-        print("✗ Contraseña de administrador incorrecta")
-        return
+        return None
     
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
@@ -293,14 +352,7 @@ def list_credentials(admin_password):
     credentials = c.fetchall()
     conn.close()
     
-    print("\n=== LISTADO DE CREDENCIALES REGISTRADAS ===")
-    print("{:<20} {:<30}".format("USUARIO", "SITIO"))
-    print("-" * 50)
-    
-    for username, site in credentials:
-        print("{:<20} {:<30}".format(username, site))
-    
-    print("\nTotal registros:", len(credentials))
+    return credentials
 
 def delete_password(username, site, admin_password):
     if not verify_admin_password(admin_password):

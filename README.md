@@ -1,132 +1,104 @@
-# Gestor de Contraseñas Seguro
+# 🔐 Gestor de Contraseñas Seguro
 
-## Descripción
-Este proyecto es un gestor de contraseñas seguro desarrollado en Python con una interfaz gráfica creada con Tkinter. Permite almacenar, recuperar, listar y eliminar credenciales de manera segura utilizando cifrado, autenticación de administrador y salting para mejorar la seguridad.
+Un gestor de contraseñas robusto y seguro desarrollado en Python con interfaz gráfica Tkinter. Proporciona almacenamiento, recuperación, listado y eliminación de credenciales con múltiples capas de seguridad.
 
-## Características
-- Interfaz gráfica intuitiva con Tkinter.
-- Cifrado de contraseñas usando `cryptography.fernet`.
-- Autenticación con contraseña de administrador.
-- Salting de contraseñas para protección adicional en el almacenamiento.
-- Protección contra ataques de fuerza bruta con bloqueo tras intentos fallidos.
-- Almacenamiento seguro en SQLite.
-- Recuperación y gestión de contraseñas mediante una clave de administrador.
+![Demo](https://via.placeholder.com/800x400?text=Gestor+de+Contraseñas+Demo) <!-- Reemplaza con imagen real -->
 
-## Requisitos
-- Python 3.x
-- Módulos necesarios:
-  - `tkinter`
-  - `sqlite3`
-  - `cryptography`
-  - `hashlib`
+## ✨ Características Principales
 
-Para instalar las dependencias necesarias, ejecuta:
-```sh
+### 🔒 Seguridad Avanzada
+- Cifrado de contraseñas con Fernet (algoritmo de cifrado simétrico)
+- Autenticación de administrador con protección contra fuerza bruta
+- Sistema de bloqueo tras intentos fallidos de inicio de sesión
+- Almacenamiento seguro en base de datos SQLite
+
+### 🖥️ Interfaz de Usuario Intuitiva
+- Diseño moderno con pestañas para diferentes funciones
+- Gestión completa de credenciales en una sola aplicación
+- Feedback visual para todas las operaciones
+
+### 🛡️ Funcionalidades de Seguridad
+- Generación de claves de cifrado únicas
+- Protección de archivos de configuración con permisos restringidos
+- Copiado automático de contraseñas al portapapeles
+- Limpieza automática de campos sensibles
+
+## 📋 Requisitos del Sistema
+
+- Python 3.7+
+- Bibliotecas requeridas:
+  ```
+  tkinter
+  sqlite3
+  cryptography
+  hashlib
+  ```
+
+## ⚙️ Instalación
+
+### Dependencias
+```bash
 pip install cryptography
 ```
 
-## Instalación y Ejecución
-1. Clona el repositorio o descarga el código fuente.
-2. Asegúrate de que tienes Python 3 instalado.
-3. Ejecuta el siguiente comando para iniciar la aplicación:
-   ```sh
-   python main.py
-   ```
-4. En la primera ejecución, se solicitará la creación de una contraseña de administrador.
+### Configuración
+1. Clonar el repositorio
+2. Asegurar instalación de Python 3.7+
+3. Ejecutar la aplicación:
+```bash
+python gui.py
+```
 
-## Uso
-- **Guardar/Actualizar contraseñas:** Ingresa el usuario, sitio/aplicación y contraseña.
-- **Recuperar contraseñas:** Proporciona el usuario, sitio y la contraseña de administrador.
-- **Listar credenciales:** Introduce la contraseña de administrador para ver todas las credenciales almacenadas.
-- **Eliminar credenciales:** Introduce el usuario, sitio y la contraseña de administrador para borrar una credencial.
+## 📖 Guía de Uso
 
-## Seguridad
-- **Salting**: Las contraseñas se almacenan con un **salt** único y se hashean utilizando el algoritmo PBKDF2 para aumentar la seguridad.
-- Las contraseñas se almacenan de forma cifrada.
-- Se protege la autenticación con un sistema de bloqueo tras varios intentos fallidos.
-- La base de datos y las claves están protegidas con permisos adecuados.
+### Primera Ejecución
+- Al iniciar por primera vez, se solicitará crear una contraseña de administrador
+- Esta contraseña será crucial para todas las operaciones posteriores
 
-## Contribución
-Si deseas mejorar este proyecto, puedes realizar un fork y enviar pull requests con mejoras o correcciones.
+### Funciones Principales
 
-## Licencia
-Este proyecto se distribuye bajo la licencia MIT.
+#### Guardar/Actualizar Contraseñas
+- Ingresa usuario, sitio/aplicación y contraseña
+- Opción de actualizar credenciales existentes
 
----
+#### Recuperar Contraseñas
+- Introduce usuario y sitio
+- Requiere contraseña de administrador
+- Contraseña se muestra y copia automáticamente al portapapeles
 
-### Posibles mejoras
+#### Listar Credenciales
+- Vista de todas las credenciales almacenadas
+- Requiere autenticación de administrador
 
-La implementación de estas mejoras de seguridad es totalmente viable y te detallo cada una con su nivel de complejidad:
+#### Eliminar Credenciales
+- Eliminar credenciales específicas
+- Confirmación y autenticación de administrador requeridas
 
-1. **Borrado seguro de contraseñas temporales** (Complejidad: Media-Baja)
-   - Implementación: Usar arrays de bytes mutables en lugar de strings (que son inmutables y permanecen en memoria).
-   - Beneficio: Las contraseñas no quedan residentes en memoria.
-   - Desafío: Requiere cambios en el manejo de strings en el código.
-   - Herramientas: `bytearray` en Python + overwrite explícito.
+## 🚨 Seguridad Implementada
 
-2. **Sistema de permisos mínimos en BD** (Complejidad: Media)
-   - Implementación:
-     - Crear usuario de BD con permisos solo CRUD necesarios.
-     - Revocar permisos a tablas del sistema.
-   - Beneficio: Limita daño en caso de inyección SQL.
-   - Desafío: Requiere configuración manual inicial.
-   - SQL Ejemplo:
-   ```sql
-   CREATE USER 'passmanager'@'localhost' IDENTIFIED BY 'password';
-   GRANT SELECT, INSERT, UPDATE, DELETE ON database.credentials TO 'passmanager'@'localhost';
-   ```
+- Cifrado Fernet para protección de datos
+- Salting y hashing de contraseña de administrador
+- Bloqueo tras 5 intentos fallidos (duración: 5 minutos)
+- Permisos de archivo restringidos
+- Limpieza automática de campos sensibles
 
-3. **Ocultar contraseñas en memoria** (Complejidad: Media-Alta)
-   - Implementación: Usar librerías especializadas como `keyring`. Almacenar en estructuras no paginables.
-   - Beneficio: Previene lectura desde swap/volcados de memoria.
-   - Desafío: Requiere dependencias externas en Python.
+## 🤝 Contribuciones
 
-4. **Guardar admin key en archivo separado** (Complejidad: Baja)
-   - Implementación:
-     - Dividir la clave en 2 partes (archivo + variable entorno).
-     - Usar `configparser` para manejo seguro.
-   - Beneficio: Defense in depth.
-   - Ejemplo Estructura:
-     ```
-     /passwd/
-       ├── passwords.db
-       ├── secret.key (clave cifrado)
-       └── admin.key (hash admin separado)
-     ```
+¡Las contribuciones son bienvenidas! Por favor:
+- Reporta issues en GitHub
+- Realiza pull requests con mejoras
+- Mantén el enfoque en seguridad y usabilidad
 
-5. **Bloqueo después de 5 intentos** (Complejidad: Media)
-   - Implementación:
-     - Tabla de intentos fallidos con timestamp.
-     - Temporizador progresivo (ej. 2^n segundos).
-   - Beneficio: Previene ataques de fuerza bruta.
-   - SQL sugerido:
-   ```sql
-   CREATE TABLE login_attempts (
-     ip VARCHAR(45),
-     attempts INT,
-     last_attempt DATETIME,
-     locked_until DATETIME
-   );
-   ```
+## ⚠️ Disclaimer de Seguridad
 
-### Viabilidad General:
-| Mejora               | Tiempo Estimado | Riesgo Implementación | Impacto Seguridad |
-|----------------------|-----------------|-----------------------|-------------------|
-| **Borrado seguro**    | 2-3 horas       | Bajo                  | Alto              |
-| **Permisos BD**       | 1-2 horas       | Medio                 | Medio-Alto        |
-| **Ocultar memoria**   | 4-5 horas       | Alto                  | Medio             |
-| **Admin key separada**| 1 hora          | Bajo                  | Medio             |
-| **Bloqueo intentos**  | 3-4 horas       | Medio                 | Alto              |
+- Mantén la contraseña de administrador en un lugar seguro
+- No compartas tus credenciales
+- Actualiza regularmente tus contraseñas maestras
 
-### Recomendación de Implementación:
-#### **Primera Fase (Seguridad básica reforzada):**
-- Admin key separada + Bloqueo por intentos.
-- Estas son las de mayor impacto/relación esfuerzo-beneficio.
+## 📜 Licencia
 
-#### **Segunda Fase (Protección avanzada):**
-- Borrado seguro + Permisos BD.
-- Requieren más cambios pero mejoran significativamente.
+Distribuido bajo Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
 
-#### **Tercera Fase (Protección memoria):**
-- Ocultar contraseñas en memoria.
-- Más compleja pero útil si manejas datos muy sensibles.
+## 📩 Contacto
+
+Para soporte o consultas, abre un issue en el repositorio.
