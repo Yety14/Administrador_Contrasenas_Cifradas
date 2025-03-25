@@ -3,9 +3,9 @@ import hashlib
 import sqlite3
 import hmac
 import time
+import base64
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
-import base64
 
 # Configuración de paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,12 +18,130 @@ ADMIN_CREDENTIALS_FILE = os.path.join(PASSWD_DIR, "admin_credentials.secure")
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_TIME = 300  # 5 minutos en segundos
 PBKDF2_ITERATIONS = 100000
+SALT_SIZE = 16  # Tamaño del salt en bytes
 
 def ensure_passwd_dir():
     """Crea el directorio seguro con permisos adecuados"""
     os.makedirs(PASSWD_DIR, exist_ok=True)
     if os.name == 'posix':
         os.chmod(PASSWD_DIR, 0o700)
+
+def init_database(admin_password):
+    """Inicializa la base de datos y archivos de seguridad"""
+    ensure_passwd_dir()
+
+    if not os.path.exists(PASSWD_DB):
+        conn = sqlite3.connect(PASSWD_DB)
+        c = conn.cursor()
+
+        # Tabla de credenciales con salting
+        c.execute('''CREATE TABLE credentials
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      username TEXT NOT NULL,
+                      site TEXT NOT NULL,
+                      salt BLOB NOT NULL,
+                      hashed_password BLOB NOT NULL,
+                      UNIQUE(username, site))''')
+
+        # Tabla de intentos fallidos
+        c.execute('''CREATE TABLE login_attempts
+                     (id INTEGER PRIMARY KEY,
+                      attempts INTEGER DEFAULT 0,
+                      last_attempt TIMESTAMP,
+                      locked_until TIMESTAMP)''')
+        c.execute("INSERT INTO login_attempts VALUES (1, 0, NULL, NULL)")
+
+        conn.commit()
+        conn.close()
+        os.chmod(PASSWD_DB, 0o600)
+
+        # Guardar credenciales admin
+        save_admin_credentials(admin_password)
+
+def generate_salt():
+    """Genera un salt aleatorio"""
+    return os.urandom(SALT_SIZE)
+
+def hash_password(password, salt):
+    """Hashea la contraseña con PBKDF2 y SHA-512"""
+    return hashlib.pbkdf2_hmac('sha512', password.encode(), salt, PBKDF2_ITERATIONS)
+
+def save_admin_credentials(password):
+    """Guarda las credenciales admin con hash y salting"""
+    salt = generate_salt()
+    hashed_pw = hash_password(password, salt)
+    with open(ADMIN_CREDENTIALS_FILE, 'wb') as f:
+        f.write(salt + hashed_pw)
+    os.chmod(ADMIN_CREDENTIALS_FILE, 0o600)
+
+def verify_admin_password(attempt):
+    """Verifica la contraseña admin con protección contra fuerza bruta"""
+    try:
+        with open(ADMIN_CREDENTIALS_FILE, 'rb') as f:
+            data = f.read()
+            salt = data[:SALT_SIZE]
+            stored_hash = data[SALT_SIZE:]
+            attempt_hash = hash_password(attempt, salt)
+
+            return hmac.compare_digest(stored_hash, attempt_hash)
+    except FileNotFoundError:
+        return False
+
+def store_password(username, site, password):
+    """Almacena una contraseña con hash y salting"""
+    salt = generate_salt()
+    hashed_pw = hash_password(password, salt)
+
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+
+    try:
+        c.execute("INSERT INTO credentials (username, site, salt, hashed_password) VALUES (?, ?, ?, ?)",
+                 (username, site, salt, hashed_pw))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def update_password(username, site, new_password):
+    """Actualiza una contraseña existente con un nuevo hash y salt"""
+    salt = generate_salt()
+    hashed_pw = hash_password(new_password, salt)
+
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+    c.execute("UPDATE credentials SET salt = ?, hashed_password = ? WHERE username = ? AND site = ?",
+             (salt, hashed_pw, username, site))
+    rows_updated = c.rowcount
+    conn.commit()
+    conn.close()
+
+    return rows_updated > 0
+
+def recover_password(username, site, admin_password):
+    """Verifica si la contraseña admin es correcta y recupera una contraseña almacenada"""
+    if not verify_admin_password(admin_password):
+        return None
+
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+    c.execute("SELECT salt, hashed_password FROM credentials WHERE username = ? AND site = ?", (username, site))
+    result = c.fetchone()
+    conn.close()
+
+    return result  # Solo devuelve la información cifrada para validaciones
+
+def check_duplicate(username, site):
+    """Verifica si ya existe una entrada para el usuario y sitio dados"""
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM credentials WHERE username = ? AND site = ?", (username, site))
+    exists = c.fetchone() is not None
+    conn.close()
+    return exists
 
 def get_cipher_key():
     """Genera o recupera la clave de cifrado"""
@@ -50,45 +168,13 @@ def decrypt_password(encrypted_password):
     """Descifra una contraseña"""
     return cipher_suite.decrypt(encrypted_password.encode()).decode()
 
-def init_database(admin_password):
-    """Inicializa la base de datos y archivos de seguridad"""
-    ensure_passwd_dir()
-    
-    # Crear BD si no existe
-    if not os.path.exists(PASSWD_DB):
-        conn = sqlite3.connect(PASSWD_DB)
-        c = conn.cursor()
-        
-        # Tabla de credenciales
-        c.execute('''CREATE TABLE credentials
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      username TEXT NOT NULL,
-                      site TEXT NOT NULL,
-                      encrypted_password TEXT NOT NULL,
-                      UNIQUE(username, site))''')
-        
-        # Tabla de intentos fallidos
-        c.execute('''CREATE TABLE login_attempts
-                     (id INTEGER PRIMARY KEY,
-                      attempts INTEGER DEFAULT 0,
-                      last_attempt TIMESTAMP,
-                      locked_until TIMESTAMP)''')
-        c.execute("INSERT INTO login_attempts VALUES (1, 0, NULL, NULL)")
-        
-        conn.commit()
-        conn.close()
-        os.chmod(PASSWD_DB, 0o600)
-        
-        # Guardar credenciales admin
-        save_admin_credentials(admin_password)
-
 def save_admin_credentials(password):
     """Guarda las credenciales admin de forma segura"""
     salt = os.urandom(16)
     hashed_pw = hashlib.pbkdf2_hmac(
-        'sha512', 
-        password.encode(), 
-        salt, 
+        'sha512',
+        password.encode(),
+        salt,
         PBKDF2_ITERATIONS
     )
     with open(ADMIN_CREDENTIALS_FILE, 'wb') as f:
@@ -102,11 +188,11 @@ def verify_admin_password(attempt):
     c = conn.cursor()
     c.execute("SELECT attempts, locked_until FROM login_attempts WHERE id = 1")
     attempts, locked_until = c.fetchone()
-    
+
     if locked_until and datetime.now() < datetime.fromisoformat(locked_until):
         conn.close()
         return False
-    
+
     # Verificar contraseña
     try:
         with open(ADMIN_CREDENTIALS_FILE, 'rb') as f:
@@ -119,7 +205,7 @@ def verify_admin_password(attempt):
                 salt,
                 PBKDF2_ITERATIONS
             )
-            
+
             if hmac.compare_digest(stored_hash, attempt_hash):
                 # Resetear intentos si es correcta
                 c.execute("UPDATE login_attempts SET attempts = 0, locked_until = NULL WHERE id = 1")
@@ -128,7 +214,7 @@ def verify_admin_password(attempt):
                 return True
     except FileNotFoundError:
         pass
-    
+
     # Manejar intento fallido
     attempts += 1
     if attempts >= MAX_LOGIN_ATTEMPTS:
@@ -138,27 +224,17 @@ def verify_admin_password(attempt):
     else:
         c.execute("UPDATE login_attempts SET attempts = ?, last_attempt = ? WHERE id = 1",
                  (attempts, datetime.now()))
-    
+
     conn.commit()
     conn.close()
     return False
 
-def check_duplicate(username, site):
-    """Verifica si ya existe una entrada para el usuario y sitio dados"""
-    conn = sqlite3.connect(PASSWD_DB)
-    c = conn.cursor()
-    try:
-        c.execute("SELECT 1 FROM credentials WHERE username = ? AND site = ?", (username, site))
-        return c.fetchone() is not None
-    finally:
-        conn.close()
-        
 def store_password(username, site, password):
     """Almacena una nueva contraseña o actualiza una existente"""
     encrypted_pw = encrypt_password(password)
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
-    
+
     try:
         # Intenta insertar primero
         c.execute("INSERT INTO credentials (username, site, encrypted_password) VALUES (?, ?, ?)",
@@ -174,7 +250,7 @@ def store_password(username, site, password):
 
 def update_password(username, site, new_password):
     encrypted_pw = encrypt_password(new_password)
-    
+
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
     c.execute("UPDATE credentials SET encrypted_password = ? WHERE username = ? AND site = ?",
@@ -182,7 +258,7 @@ def update_password(username, site, new_password):
     rows_updated = c.rowcount
     conn.commit()
     conn.close()
-    
+
     if rows_updated > 0:
         print("✓ Contraseña actualizada exitosamente")
         return True
