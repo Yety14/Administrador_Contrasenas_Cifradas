@@ -102,3 +102,7 @@ Distribuido bajo Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más 
 ## 📩 Contacto
 
 Para soporte o consultas, abre un issue en el repositorio.
+
+
+
+Me queda mejorar la instalación(q sea un exe y listo) y q des intro en el ultimo apartado para ejecutar sin necesidad de usar el boton, pero vamos
