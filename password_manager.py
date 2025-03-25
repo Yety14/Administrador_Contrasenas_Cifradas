@@ -1,20 +1,32 @@
 import os
 import hashlib
 import sqlite3
+import hmac
+import time
+from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 import base64
 
+# Configuración de paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PASSWD_DIR = os.path.join(BASE_DIR, "passwd")
 PASSWD_DB = os.path.join(PASSWD_DIR, "passwords.db")
 SECRET_KEY_FILE = os.path.join(PASSWD_DIR, "secret.key")
+ADMIN_CREDENTIALS_FILE = os.path.join(PASSWD_DIR, "admin_credentials.secure")
+
+# Configuración de seguridad
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_TIME = 300  # 5 minutos en segundos
+PBKDF2_ITERATIONS = 100000
 
 def ensure_passwd_dir():
+    """Crea el directorio seguro con permisos adecuados"""
     os.makedirs(PASSWD_DIR, exist_ok=True)
     if os.name == 'posix':
         os.chmod(PASSWD_DIR, 0o700)
 
 def get_cipher_key():
+    """Genera o recupera la clave de cifrado"""
     ensure_passwd_dir()
     if os.path.exists(SECRET_KEY_FILE):
         with open(SECRET_KEY_FILE, "rb") as f:
@@ -26,22 +38,28 @@ def get_cipher_key():
         os.chmod(SECRET_KEY_FILE, 0o600)
         return key
 
+# Configuración de cifrado
 KEY = get_cipher_key()
 cipher_suite = Fernet(KEY)
 
 def encrypt_password(password):
+    """Cifra una contraseña"""
     return cipher_suite.encrypt(password.encode()).decode()
 
 def decrypt_password(encrypted_password):
+    """Descifra una contraseña"""
     return cipher_suite.decrypt(encrypted_password.encode()).decode()
 
 def init_database(admin_password):
+    """Inicializa la base de datos y archivos de seguridad"""
     ensure_passwd_dir()
+    
+    # Crear BD si no existe
     if not os.path.exists(PASSWD_DB):
         conn = sqlite3.connect(PASSWD_DB)
         c = conn.cursor()
         
-        # Crear tabla para credenciales
+        # Tabla de credenciales
         c.execute('''CREATE TABLE credentials
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       username TEXT NOT NULL,
@@ -49,57 +67,107 @@ def init_database(admin_password):
                       encrypted_password TEXT NOT NULL,
                       UNIQUE(username, site))''')
         
-        # Crear tabla para admin
-        hashed_admin_pw = hashlib.sha256(admin_password.encode()).hexdigest()
-        c.execute('''CREATE TABLE admin
+        # Tabla de intentos fallidos
+        c.execute('''CREATE TABLE login_attempts
                      (id INTEGER PRIMARY KEY,
-                      password_hash TEXT NOT NULL)''')
-        c.execute("INSERT INTO admin VALUES (1, ?)", (hashed_admin_pw,))
+                      attempts INTEGER DEFAULT 0,
+                      last_attempt TIMESTAMP,
+                      locked_until TIMESTAMP)''')
+        c.execute("INSERT INTO login_attempts VALUES (1, 0, NULL, NULL)")
         
         conn.commit()
         conn.close()
         os.chmod(PASSWD_DB, 0o600)
+        
+        # Guardar credenciales admin
+        save_admin_credentials(admin_password)
+
+def save_admin_credentials(password):
+    """Guarda las credenciales admin de forma segura"""
+    salt = os.urandom(16)
+    hashed_pw = hashlib.pbkdf2_hmac(
+        'sha512', 
+        password.encode(), 
+        salt, 
+        PBKDF2_ITERATIONS
+    )
+    with open(ADMIN_CREDENTIALS_FILE, 'wb') as f:
+        f.write(salt + hashed_pw)
+    os.chmod(ADMIN_CREDENTIALS_FILE, 0o600)
 
 def verify_admin_password(attempt):
+    """Verifica la contraseña admin con protección contra fuerza bruta"""
+    # Verificar estado de bloqueo
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
-    c.execute("SELECT password_hash FROM admin WHERE id = 1")
-    result = c.fetchone()
-    conn.close()
+    c.execute("SELECT attempts, locked_until FROM login_attempts WHERE id = 1")
+    attempts, locked_until = c.fetchone()
     
-    if result:
-        stored_hash = result[0]
-        return hashlib.sha256(attempt.encode()).hexdigest() == stored_hash
+    if locked_until and datetime.now() < datetime.fromisoformat(locked_until):
+        conn.close()
+        return False
+    
+    # Verificar contraseña
+    try:
+        with open(ADMIN_CREDENTIALS_FILE, 'rb') as f:
+            data = f.read()
+            salt = data[:16]
+            stored_hash = data[16:]
+            attempt_hash = hashlib.pbkdf2_hmac(
+                'sha512',
+                attempt.encode(),
+                salt,
+                PBKDF2_ITERATIONS
+            )
+            
+            if hmac.compare_digest(stored_hash, attempt_hash):
+                # Resetear intentos si es correcta
+                c.execute("UPDATE login_attempts SET attempts = 0, locked_until = NULL WHERE id = 1")
+                conn.commit()
+                conn.close()
+                return True
+    except FileNotFoundError:
+        pass
+    
+    # Manejar intento fallido
+    attempts += 1
+    if attempts >= MAX_LOGIN_ATTEMPTS:
+        locked_until = datetime.now() + timedelta(seconds=LOCKOUT_TIME)
+        c.execute("UPDATE login_attempts SET attempts = ?, last_attempt = ?, locked_until = ? WHERE id = 1",
+                 (attempts, datetime.now(), locked_until))
+    else:
+        c.execute("UPDATE login_attempts SET attempts = ?, last_attempt = ? WHERE id = 1",
+                 (attempts, datetime.now()))
+    
+    conn.commit()
+    conn.close()
     return False
 
 def check_duplicate(username, site):
+    """Verifica si ya existe una entrada para el usuario y sitio dados"""
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
-    c.execute("SELECT 1 FROM credentials WHERE username = ? AND site = ?", (username, site))
-    result = c.fetchone()
-    conn.close()
-    return result is not None
-
+    try:
+        c.execute("SELECT 1 FROM credentials WHERE username = ? AND site = ?", (username, site))
+        return c.fetchone() is not None
+    finally:
+        conn.close()
+        
 def store_password(username, site, password):
+    """Almacena una nueva contraseña o actualiza una existente"""
     encrypted_pw = encrypt_password(password)
-    
     conn = sqlite3.connect(PASSWD_DB)
     c = conn.cursor()
     
     try:
+        # Intenta insertar primero
         c.execute("INSERT INTO credentials (username, site, encrypted_password) VALUES (?, ?, ?)",
                  (username, site, encrypted_pw))
         conn.commit()
-        print("✓ Contraseña guardada!")
         return True
     except sqlite3.IntegrityError:
-        print("✓ Ya existe una entrada para este usuario y sitio")
-        admin_pw = input("¿Desea cambiar la contraseña? (s/n): ")
-        if admin_pw.lower() == 's':
-            admin_pw = input("Contraseña de administrador: ")
-            if verify_admin_password(admin_pw):
-                update_password(username, site, password)
-                return True
+        # Si ya existe, pregunta si se desea actualizar
+        conn.rollback()
         return False
     finally:
         conn.close()
