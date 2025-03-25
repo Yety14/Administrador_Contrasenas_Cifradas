@@ -80,4 +80,4 @@ CREATE TABLE login_attempts (
    - Ocultar contraseñas en memoria
    - Más compleja pero útil si manejas datos muy sensibles
 
-¿Quieres que desarrolle más detalles de implementación para alguna en particular? Podría proporcionarte ejemplos de código específicos para las que elijas primero.
+4 aplicar salting
