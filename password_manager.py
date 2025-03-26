@@ -2,7 +2,6 @@ import os
 import hashlib
 import sqlite3
 import hmac
-import time
 import base64
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
