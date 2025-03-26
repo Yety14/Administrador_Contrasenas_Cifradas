@@ -27,13 +27,21 @@ class PasswordManagerApp(App):
     def build(self):
         self.tab_panel = TabbedPanel()
 
-        # Pestaña para guardar contraseñas
+        # Agregar pestañas
+        self.tab_panel.add_widget(self.create_save_tab())
+        self.tab_panel.add_widget(self.create_recover_tab())
+        self.tab_panel.add_widget(self.create_list_tab())
+        self.tab_panel.add_widget(self.create_delete_tab())
+
+        return self.tab_panel
+
+    def create_save_tab(self):
+        """Crea la pestaña para guardar contraseñas."""
         save_tab = CustomTabbedPanelItem(text='Guardar Contraseña')
-        save_tab_layout = GridLayout(cols=3, padding=10, spacing=10)
+        save_tab_layout = self.create_grid_layout()
 
         # Título de sección
-        title_label = Label(text="Guardar Nueva Contraseña", size_hint_y=None, height=40)
-        save_tab_layout.add_widget(title_label)
+        save_tab_layout.add_widget(Label(text="Guardar Nueva Contraseña", size_hint_y=None, height=40))
 
         # Campos de entrada
         fields = [
@@ -41,20 +49,7 @@ class PasswordManagerApp(App):
             ("🌐 Sitio/Aplicación:", "site_input"),
             ("🔐 Contraseña:", "password_input", True)
         ]
-
-        for i, (label_text, attr, *options) in enumerate(fields):
-            label = Label(text=label_text, size_hint_x=None, width=150)
-            save_tab_layout.add_widget(label)
-
-            entry = TextInput(hint_text=label_text, multiline=False, password=True if options else False)
-            setattr(self, attr, entry)
-            save_tab_layout.add_widget(entry)
-
-            # Checkbox para mostrar contraseña si es un campo de contraseña
-            if options:
-                show_pass_checkbox = CheckBox()
-                show_pass_checkbox.bind(active=lambda checkbox, value: self.toggle_password_visibility(entry, value))
-                save_tab_layout.add_widget(show_pass_checkbox)
+        self.add_fields_to_layout(save_tab_layout, fields)
 
         # Botón para guardar
         save_btn = Button(text="Guardar", on_press=self.save_password)
@@ -65,14 +60,15 @@ class PasswordManagerApp(App):
         save_tab_layout.add_widget(self.result_label)
 
         save_tab.add_widget(save_tab_layout)
+        return save_tab
 
-        # Pestaña para recuperar contraseñas
+    def create_recover_tab(self):
+        """Crea la pestaña para recuperar contraseñas."""
         recover_tab = CustomTabbedPanelItem(text='Recuperar Contraseña')
-        recover_tab_layout = GridLayout(cols=3, padding=10, spacing=10)
+        recover_tab_layout = self.create_grid_layout()
 
         # Título de sección
-        recover_title_label = Label(text="Recuperar Contraseña", size_hint_y=None, height=40)
-        recover_tab_layout.add_widget(recover_title_label)
+        recover_tab_layout.add_widget(Label(text="Recuperar Contraseña", size_hint_y=None, height=40))
 
         # Campos de entrada
         recover_fields = [
@@ -80,20 +76,7 @@ class PasswordManagerApp(App):
             ("🌐 Sitio/Aplicación:", "rec_site_input"),
             ("🔒 Contraseña Admin:", "admin_pass_input", True)
         ]
-
-        for i, (label_text, attr, *options) in enumerate(recover_fields):
-            label = Label(text=label_text, size_hint_x=None, width=150)
-            recover_tab_layout.add_widget(label)
-
-            entry = TextInput(hint_text=label_text, multiline=False, password=True if options else False)
-            setattr(self, attr, entry)
-            recover_tab_layout.add_widget(entry)
-
-            # Checkbox para mostrar contraseña si es un campo de contraseña
-            if options:
-                show_pass_checkbox = CheckBox()
-                show_pass_checkbox.bind(active=lambda checkbox, value: self.toggle_password_visibility(entry, value))
-                recover_tab_layout.add_widget(show_pass_checkbox)
+        self.add_fields_to_layout(recover_tab_layout, recover_fields)
 
         # Botón para recuperar
         recover_btn = Button(text="🔍 Recuperar", on_press=self.retrieve_password)
@@ -104,14 +87,15 @@ class PasswordManagerApp(App):
         recover_tab_layout.add_widget(self.recover_result_label)
 
         recover_tab.add_widget(recover_tab_layout)
+        return recover_tab
 
-        # Pestaña para listar credenciales
+    def create_list_tab(self):
+        """Crea la pestaña para listar credenciales."""
         list_tab = CustomTabbedPanelItem(text='Listar Credenciales')
-        list_tab_layout = GridLayout(cols=3, padding=10, spacing=10)
+        list_tab_layout = self.create_grid_layout()
 
         # Título de sección
-        list_title_label = Label(text="Listar Credenciales", size_hint_y=None, height=40)
-        list_tab_layout.add_widget(list_title_label)
+        list_tab_layout.add_widget(Label(text="Listar Credenciales", size_hint_y=None, height=40))
 
         # Campo de entrada para la contraseña de administrador
         list_admin_label = Label(text="🔒 Contraseña Admin:", size_hint_x=None, width=150)
@@ -137,14 +121,15 @@ class PasswordManagerApp(App):
         list_tab_layout.add_widget(scroll_view)
 
         list_tab.add_widget(list_tab_layout)
+        return list_tab
 
-        # Pestaña para eliminar credenciales
+    def create_delete_tab(self):
+        """Crea la pestaña para eliminar credenciales."""
         delete_tab = CustomTabbedPanelItem(text='❌ Eliminar Credencial')
-        delete_tab_layout = GridLayout(cols=3, padding=10, spacing=10)
+        delete_tab_layout = self.create_grid_layout()
 
         # Título de sección
-        delete_title_label = Label(text="Eliminar Credencial", size_hint_y=None, height=40)
-        delete_tab_layout.add_widget(delete_title_label)
+        delete_tab_layout.add_widget(Label(text="Eliminar Credencial", size_hint_y=None, height=40))
 
         # Campos de entrada
         delete_fields = [
@@ -152,20 +137,7 @@ class PasswordManagerApp(App):
             ("🌐 Sitio/Aplicación:", "del_site_input"),
             ("🔒 Contraseña Admin:", "del_admin_input", True)
         ]
-
-        for i, (label_text, attr, *options) in enumerate(delete_fields):
-            label = Label(text=label_text, size_hint_x=None, width=150)
-            delete_tab_layout.add_widget(label)
-
-            entry = TextInput(hint_text=label_text, multiline=False, password=True if options else False)
-            setattr(self, attr, entry)
-            delete_tab_layout.add_widget(entry)
-
-            # Checkbox para mostrar contraseña si es un campo de contraseña
-            if options:
-                show_pass_checkbox = CheckBox()
-                show_pass_checkbox.bind(active=lambda checkbox, value: self.toggle_password_visibility(entry, value))
-                delete_tab_layout.add_widget(show_pass_checkbox)
+        self.add_fields_to_layout(delete_tab_layout, delete_fields)
 
         # Botón para eliminar
         delete_btn = Button(text="❌ Eliminar", on_press=self.remove_password)
@@ -176,14 +148,27 @@ class PasswordManagerApp(App):
         delete_tab_layout.add_widget(self.delete_result_label)
 
         delete_tab.add_widget(delete_tab_layout)
+        return delete_tab
 
-        # Agregar pestañas al panel
-        self.tab_panel.add_widget(save_tab)
-        self.tab_panel.add_widget(recover_tab)
-        self.tab_panel.add_widget(list_tab)
-        self.tab_panel.add_widget(delete_tab)  # Agregar la pestaña de eliminar
+    def create_grid_layout(self):
+        """Crea un GridLayout para las pestañas."""
+        return GridLayout(cols=3, padding=10, spacing=10)
 
-        return self.tab_panel
+    def add_fields_to_layout(self, layout, fields):
+        """Agrega campos de entrada a un layout."""
+        for label_text, attr, *options in fields:
+            label = Label(text=label_text, size_hint_x=None, width=150)
+            layout.add_widget(label)
+
+            entry = TextInput(hint_text=label_text, multiline=False, password=True if options else False)
+            setattr(self, attr, entry)
+            layout.add_widget(entry)
+
+            # Checkbox para mostrar contraseña si es un campo de contraseña
+            if options:
+                show_pass_checkbox = CheckBox()
+                show_pass_checkbox.bind(active=lambda checkbox, value: self.toggle_password_visibility(entry, value))
+                layout.add_widget(show_pass_checkbox)
 
     def toggle_password_visibility(self, entry, is_visible):
         """Alterna la visibilidad de la contraseña en el campo de entrada."""
