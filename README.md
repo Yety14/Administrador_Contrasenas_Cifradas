@@ -111,6 +111,10 @@ Mejorar la instalación (que sea un exe y listo)
 	Dificultad: Media
 	Descripción: Utilizar herramientas como PyInstaller o cx_Freeze para empaquetar la aplicación en un ejecutable. Puede requerir ajustes en la configuración y pruebas para asegurar que todas las dependencias se incluyan correctamente.
 
+Generador de Contraseñas Seguras
+	Dificultad: Baja
+	Descripción: Crear una función que genere contraseñas aleatorias con opciones para incluir caracteres especiales, números y mayúsculas. Esto puede hacerse utilizando la biblioteca random.
+
 Exportar e Importar Credenciales
 	Dificultad: Media
 	Descripción: Implementar funciones para exportar las credenciales a un archivo (CSV o JSON) y para importar desde un archivo. Esto requiere manejo de archivos y posiblemente validación de datos.
@@ -134,3 +138,11 @@ Soporte Multilingüe
 2FA (Autenticación de Dos Factores)
 	Dificultad: Alta
 	Descripción: Implementar un sistema de autenticación de dos factores, que puede incluir el uso de aplicaciones de autenticación o SMS. Esto requiere una comprensión de la seguridad y posiblemente la integración con servicios externos.
+
+Modo oscuro automático
+	Dificultad: Media
+	Descripción: Implementar un modo oscuro que se active automáticamente según la hora del día o la configuración del sistema operativo. Esto implica cambios en la lógica de la interfaz y posiblemente el uso de bibliotecas adicionales.
+
+Análisis de Fuerza de Contraseña
+	Dificultad: Media
+	Descripción: Crear una función que evalúe la fuerza de las contraseñas ingresadas y sugiera mejoras. Esto puede hacerse utilizando reglas simples (longitud, variedad de caracteres) y puede requerir pruebas adicionales.
