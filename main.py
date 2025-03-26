@@ -213,32 +213,64 @@ class TabbedTextInput(TextInput):
     def on_enter(self, instance):
         if self.is_last_field:
             app = App.get_running_app()
-            current_tab = app.tab_panel.current_tab.text
-            if current_tab == 'Guardar':
-                app.save_password(None)
-            elif current_tab == 'Recuperar':
-                app.retrieve_password(None)
-            elif current_tab == 'Eliminar':
-                app.remove_password(None)
-            elif current_tab == 'Listar':  # Añade este caso
-                app.list_credentials(None)
+            # Verificamos si estamos en el popup de configuración inicial
+            if hasattr(app, 'setup_popup') and app.setup_popup:
+                # En el popup de configuración, presionar Enter en el último campo activa el botón Aceptar
+                for child in app.setup_popup.content.children:
+                    if isinstance(child, BoxLayout):
+                        for btn in child.children:
+                            if isinstance(btn, Button) and btn.text == 'Aceptar':
+                                btn.dispatch('on_press')
+                                return
+            else:
+                # Comportamiento normal en las pestañas
+                current_tab = app.tab_panel.current_tab.text if hasattr(app, 'tab_panel') else None
+                if current_tab == 'Guardar':
+                    app.save_password(None)
+                elif current_tab == 'Recuperar':
+                    app.retrieve_password(None)
+                elif current_tab == 'Eliminar':
+                    app.remove_password(None)
+                elif current_tab == 'Listar':
+                    app.list_credentials(None)
         else:
             self.focus_next()
     
     def focus_next(self):
         app = App.get_running_app()
-        current_tab = app.tab_panel.current_tab
         
-        if hasattr(current_tab, 'tab_order'):
-            inputs = current_tab.tab_order
-            try:
-                current_index = inputs.index(self)
-                next_index = (current_index + 1) % len(inputs)
-                next_input = inputs[next_index]
-                Clock.schedule_once(lambda dt: setattr(next_input, 'focus', True), 0.1)
-            except ValueError:
-                if inputs:
-                    Clock.schedule_once(lambda dt: setattr(inputs[0], 'focus', True), 0.1)
+        # Primero verificamos si estamos en el popup de configuración
+        if hasattr(app, 'setup_popup') and app.setup_popup:
+            if hasattr(app.setup_popup.content, 'tab_order'):
+                try:
+                    current_index = app.setup_popup.content.tab_order.index(self)
+                    next_index = (current_index + 1) % len(app.setup_popup.content.tab_order)
+                    next_widget = app.setup_popup.content.tab_order[next_index]
+                    
+                    if isinstance(next_widget, TextInput):
+                        next_widget.focus = True
+                    elif hasattr(next_widget, 'focus'):
+                        next_widget.focus = True
+                    return
+                except ValueError:
+                    pass
+            return
+        
+        # Comportamiento normal en las pestañas
+        if hasattr(app, 'tab_panel'):
+            current_tab = app.tab_panel.current_tab
+            if not current_tab or not current_tab.content:
+                return
+            
+            if hasattr(current_tab, 'tab_order') and current_tab.tab_order:
+                try:
+                    current_index = current_tab.tab_order.index(self)
+                    next_index = (current_index + 1) % len(current_tab.tab_order)
+                    next_input = current_tab.tab_order[next_index]
+                    Clock.schedule_once(lambda dt: setattr(next_input, 'focus', True), 0.1)
+                except ValueError:
+                    if current_tab.tab_order:
+                        Clock.schedule_once(lambda dt: setattr(current_tab.tab_order[0], 'focus', True), 0.1)
 
 class PasswordManagerApp(App):
     def build(self):
@@ -280,23 +312,45 @@ class PasswordManagerApp(App):
                    halign='center', font_size=16)
         content.add_widget(lbl)
         
-        self.setup_pass1 = TextInput(hint_text="Contraseña", password=True, size_hint_y=None, height=40)
+        self.setup_pass1 = TabbedTextInput(
+            hint_text="Contraseña", 
+            password=True, 
+            size_hint_y=None, 
+            height=40,
+            is_last_field=False
+        )
         content.add_widget(self.setup_pass1)
         
-        self.setup_pass2 = TextInput(hint_text="Confirmar contraseña", password=True, size_hint_y=None, height=40)
+        self.setup_pass2 = TabbedTextInput(
+            hint_text="Confirmar contraseña", 
+            password=True, 
+            size_hint_y=None, 
+            height=40,
+            is_last_field=True
+        )
         content.add_widget(self.setup_pass2)
         
         btn_layout = BoxLayout(size_hint_y=None, height=50, spacing=10)
-        btn_accept = Button(text="Aceptar")
         btn_cancel = Button(text="Cancelar")
+        btn_accept = Button(text="Aceptar")
+        
+        # Hacemos que los botones puedan recibir foco
+        btn_cancel.focusable = True
+        btn_accept.focusable = True
+        
         btn_layout.add_widget(btn_cancel)
         btn_layout.add_widget(btn_accept)
         content.add_widget(btn_layout)
         
-        self.setup_popup = Popup(title="Configuración Inicial", 
-                               content=content,
-                               size_hint=(0.8, 0.6),
-                               auto_dismiss=False)
+        # Establecemos el orden de tabulación
+        content.tab_order = [self.setup_pass1, self.setup_pass2, btn_cancel, btn_accept]
+        
+        self.setup_popup = Popup(
+            title="Configuración Inicial", 
+            content=content,
+            size_hint=(0.8, 0.6),
+            auto_dismiss=False
+        )
         
         def setup_admin(instance):
             if not self.setup_pass1.text or not self.setup_pass2.text:
@@ -310,20 +364,19 @@ class PasswordManagerApp(App):
                 return
                 
             try:
-                # Crear estructura inicial
                 init_database(self.setup_pass1.text)
                 self.setup_popup.dismiss()
-                
-                # Limpiar la ventana actual y mostrar la interfaz principal
                 Window.remove_widget(Window.children[0])
                 Window.add_widget(self.create_main_interface())
-                
             except Exception as e:
                 lbl.text = f"Error en configuración: {str(e)}"
                 lbl.color = (1, 0, 0, 1)
         
         btn_accept.bind(on_press=setup_admin)
         btn_cancel.bind(on_press=lambda x: (self.setup_popup.dismiss(), self.stop()))
+        
+        # Configuramos el foco inicial
+        Clock.schedule_once(lambda dt: setattr(self.setup_pass1, 'focus', True), 0.1)
         
         self.setup_popup.open()
     
