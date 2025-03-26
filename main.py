@@ -372,13 +372,26 @@ class PasswordManagerApp(App):
                 lbl.text = f"Error en configuración: {str(e)}"
                 lbl.color = (1, 0, 0, 1)
         
+        def cancel_setup(instance):
+            # Eliminamos la carpeta passwd si existe
+            try:
+                if os.path.exists(PASSWD_DIR):
+                    import shutil
+                    shutil.rmtree(PASSWD_DIR)
+            except Exception as e:
+                print(f"Error al eliminar directorio: {e}")
+            
+            # Cerramos la aplicación
+            self.setup_popup.dismiss()
+            self.stop()
+        
         btn_accept.bind(on_press=setup_admin)
-        btn_cancel.bind(on_press=lambda x: (self.setup_popup.dismiss(), self.stop()))
+        btn_cancel.bind(on_press=cancel_setup)
         
         # Configuramos el foco inicial
         Clock.schedule_once(lambda dt: setattr(self.setup_pass1, 'focus', True), 0.1)
         
-        self.setup_popup.open()
+        self.setup_popup.open()    
     
     def create_main_interface(self):
         """Crea la interfaz principal de pestañas"""
