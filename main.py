@@ -302,14 +302,19 @@ class PasswordManagerApp(App):
         list_tab_layout.add_widget(list_btn)
 
         # ScrollView for credentials
-        scroll_view = ScrollView(size_hint=(1, 1))
-        self.cred_display = Label(text="", size_hint_y=None, halign='left', valign='top')
-        self.cred_display.bind(size=self.update_cred_display)
+        scroll_view = ScrollView(size_hint=(1, None), size=(Window.width - 40, 300), do_scroll_x=False)
+        self.cred_display = Label(text="", size_hint_y=None, text_size=(Window.width - 60, None), halign='left', valign='top')
+        self.cred_display.bind(texture_size=self.update_cred_display)
         scroll_view.add_widget(self.cred_display)
         list_tab_layout.add_widget(scroll_view)
 
         list_tab.add_widget(list_tab_layout)
         return list_tab
+
+    def update_cred_display(self, instance, value):
+        """Adjust the size of the credentials display label."""
+        self.cred_display.size_hint_y = None
+        self.cred_display.height = self.cred_display.texture_size[1]
 
     def create_delete_tab(self):
         """Create the delete credentials tab."""
@@ -338,7 +343,7 @@ class PasswordManagerApp(App):
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
         self.del_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
         admin_layout.add_widget(self.del_admin_input)
-        
+            
         # Show password checkbox
         show_pass_layout = BoxLayout(orientation='horizontal', size_hint_x=None, width=150)
         show_pass_layout.add_widget(Label(text="Mostrar", size_hint_x=None, width=80))
@@ -346,17 +351,17 @@ class PasswordManagerApp(App):
         self.del_show_pass_checkbox.bind(active=lambda checkbox, value: self.toggle_password_visibility(self.del_admin_input, value))
         show_pass_layout.add_widget(self.del_show_pass_checkbox)
         admin_layout.add_widget(show_pass_layout)
-        
+            
         delete_tab_layout.add_widget(admin_layout)
 
         # Delete button
         delete_btn = Button(text="Eliminar", size_hint_y=None, height=40, on_press=self.remove_password)
         delete_tab_layout.add_widget(delete_btn)
-
+        
         # Result label
         self.delete_result_label = Label(text="", size_hint_y=None, height=60)
         delete_tab_layout.add_widget(self.delete_result_label)
-
+        
         delete_tab.add_widget(delete_tab_layout)
         return delete_tab
 
