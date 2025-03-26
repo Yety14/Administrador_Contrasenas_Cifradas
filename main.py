@@ -13,7 +13,8 @@ from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.base import EventLoop
-from kivy.metrics import dp  # Import density-independent pixels
+from kivy.metrics import dp
+from kivy.uix.spinner import Spinner
 import random
 import string
 
@@ -46,9 +47,9 @@ def generate_password(length=16, use_upper=True, use_lower=True, use_numbers=Tru
 class CustomTabbedPanelItem(TabbedPanelItem):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.padding = [20, 5]  # [horizontal, vertical]
-        label = Label(text=kwargs.get('text', ''), 
-                     size_hint_x=None, 
+        self.padding = [20, 5]
+        label = Label(text=kwargs.get('text', ''),
+                     size_hint_x=None,
                      halign='center',
                      valign='middle')
         min_width = max(len(self.text) * 15, 100)
@@ -73,31 +74,20 @@ class TabbedTextInput(TextInput):
         self.focus_next()
     
     def focus_next(self):
-        # Obtener todos los inputs en la pestaña actual
         app = App.get_running_app()
         current_tab = app.tab_panel.current_tab
-        inputs = []
         
-        # Función recursiva para recolectar todos los TextInput
-        def collect_inputs(widget):
-            for child in widget.children:
-                if isinstance(child, TextInput):
-                    inputs.append(child)
-                collect_inputs(child)
-        
-        collect_inputs(current_tab.content)
-        
-        if inputs:
+        if hasattr(current_tab, 'tab_order'):
+            inputs = current_tab.tab_order
             try:
                 current_index = inputs.index(self)
                 next_index = (current_index + 1) % len(inputs)
                 next_input = inputs[next_index]
                 Clock.schedule_once(lambda dt: setattr(next_input, 'focus', True), 0.1)
             except ValueError:
-                # Si no encontramos el input actual en la lista, enfocar el primero
                 if inputs:
                     Clock.schedule_once(lambda dt: setattr(inputs[0], 'focus', True), 0.1)
-                    
+
 class PasswordManagerApp(App):
     def build(self):
         Window.bind(on_request_close=self.on_request_close)
@@ -121,8 +111,20 @@ class PasswordManagerApp(App):
             tab = creator()
             tab.text = text
             self.tab_panel.add_widget(tab)
-            
+        
+        self.tab_panel.bind(current_tab=self.on_tab_changed)
         return self.tab_panel
+    
+    def on_tab_changed(self, instance, value):
+        Clock.schedule_once(lambda dt: self.focus_first_input(), 0.1)
+    
+    def focus_first_input(self):
+        current_tab = self.tab_panel.current_tab
+        if not current_tab or not current_tab.content:
+            return
+        
+        if hasattr(current_tab, 'tab_order') and current_tab.tab_order:
+            current_tab.tab_order[0].focus = True
     
     def on_request_close(self, *args):
         """Manejador mejorado para cerrar la aplicación"""
@@ -143,22 +145,21 @@ class PasswordManagerApp(App):
         except Exception as e:
             print(f"Error al cerrar: {e}")
             import os
-            os._exit(0)  # Fuerza el cierre si todo falla
+            os._exit(0)
         
     def create_save_tab(self):
         save_tab = CustomTabbedPanelItem()
         main_layout = BoxLayout(
             orientation='vertical', 
-            padding=[10, Window.height * 0.1, 10, 10],  # Increased top padding to 10%
+            padding=[10, Window.height * 0.1, 10, 10],
             spacing=10
         )
         
-        # Title with bold formatting
+        # Title
         main_layout.add_widget(Label(text="Guardar Nueva Contraseña", size_hint_y=None, height=30, bold=True))
         
         # Save Password Section
         save_section = BoxLayout(orientation='vertical', spacing=10)
-        save_section.add_widget(Label(text="Guardar Nueva Contraseña", size_hint_y=None, height=30, bold=True))
         
         # User field
         user_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
@@ -189,7 +190,7 @@ class PasswordManagerApp(App):
         pass_layout.add_widget(show_pass_layout)
         save_section.add_widget(pass_layout)
         
-        # Add a name to the save button to make it easier to reference
+        # Save button
         save_btn = Button(text="Guardar", size_hint_y=None, height=40, on_press=self.save_password)
         save_section.add_widget(save_btn)
     
@@ -203,11 +204,16 @@ class PasswordManagerApp(App):
         generator_section = BoxLayout(orientation='vertical', spacing=10)
         generator_section.add_widget(Label(text="Generador de Contraseñas", size_hint_y=None, height=30, bold=True))
         
-        # Password length
+        # Password length spinner
         length_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         length_layout.add_widget(Label(text="Longitud:", size_hint_x=None, width=150))
-        self.length_input = TabbedTextInput(text="16", multiline=False, size_hint_x=None, width=100)
-        length_layout.add_widget(self.length_input)
+        self.length_spinner = Spinner(
+            text='16',
+            values=[str(i) for i in range(8, 33)],
+            size_hint_x=None,
+            width=100
+        )
+        length_layout.add_widget(self.length_spinner)
         generator_section.add_widget(length_layout)
         
         # Checkboxes for password options
@@ -234,23 +240,22 @@ class PasswordManagerApp(App):
         main_layout.add_widget(save_section)
         main_layout.add_widget(divider)
         main_layout.add_widget(generator_section)
+        
+        # Set tab order for this tab
+        save_tab.tab_order = [self.username_input, self.site_input, self.password_input]
+        
         save_tab.add_widget(main_layout)
         return save_tab
         
-    def update_cred_display(self, instance, value):
-        """Adjust the size of the credentials display label."""
-        self.cred_display.size_hint_y = None
-        self.cred_display.height = self.cred_display.texture_size[1]
-
     def create_recover_tab(self):
         recover_tab = CustomTabbedPanelItem(text='Recuperar Contraseña')
         recover_tab_layout = BoxLayout(
             orientation='vertical', 
-            padding=[10, Window.height * 0.1, 10, 10],  # Consistent top padding
+            padding=[10, Window.height * 0.1, 10, 10],
             spacing=10
         )
 
-        # Title with bold formatting
+        # Title
         recover_tab_layout.add_widget(Label(text="Recuperar Contraseña", size_hint_y=None, height=30, bold=True))
 
         # User field
@@ -291,6 +296,9 @@ class PasswordManagerApp(App):
         self.recover_result_label = Label(text="", size_hint_y=None, height=60)
         recover_tab_layout.add_widget(self.recover_result_label)
 
+        # Set tab order for this tab
+        recover_tab.tab_order = [self.rec_user_input, self.rec_site_input, self.admin_pass_input]
+
         recover_tab.add_widget(recover_tab_layout)
         return recover_tab
 
@@ -298,11 +306,11 @@ class PasswordManagerApp(App):
         list_tab = CustomTabbedPanelItem(text='Listar Credenciales')
         list_tab_layout = BoxLayout(
             orientation='vertical', 
-            padding=[10, Window.height * 0.1, 10, 10],  # Consistent top padding
+            padding=[10, Window.height * 0.1, 10, 10],
             spacing=10
         )
 
-        # Title with bold formatting
+        # Title
         list_tab_layout.add_widget(Label(text="Listar Credenciales", size_hint_y=None, height=30, bold=True))
 
         # Admin password field
@@ -332,6 +340,9 @@ class PasswordManagerApp(App):
         scroll_view.add_widget(self.cred_display)
         list_tab_layout.add_widget(scroll_view)
 
+        # Set tab order for this tab
+        list_tab.tab_order = [self.list_admin_input]
+
         list_tab.add_widget(list_tab_layout)
         return list_tab
 
@@ -339,11 +350,11 @@ class PasswordManagerApp(App):
         delete_tab = CustomTabbedPanelItem(text='Eliminar Credencial')
         delete_tab_layout = BoxLayout(
             orientation='vertical', 
-            padding=[10, Window.height * 0.1, 10, 10],  # Consistent top padding
+            padding=[10, Window.height * 0.1, 10, 10],
             spacing=10
         )
 
-        # Title with bold formatting
+        # Title
         delete_tab_layout.add_widget(Label(text="Eliminar Credencial", size_hint_y=None, height=30, bold=True))
 
         # User field
@@ -384,6 +395,9 @@ class PasswordManagerApp(App):
         self.delete_result_label = Label(text="", size_hint_y=None, height=60)
         delete_tab_layout.add_widget(self.delete_result_label)
         
+        # Set tab order for this tab
+        delete_tab.tab_order = [self.del_user_input, self.del_site_input, self.del_admin_input]
+        
         delete_tab.add_widget(delete_tab_layout)
         return delete_tab
 
@@ -395,7 +409,7 @@ class PasswordManagerApp(App):
     def generate_password(self, instance):
         """Generate a random password based on user preferences."""
         try:
-            length = int(self.length_input.text)
+            length = int(self.length_spinner.text)
             if length < 4 or length > 64:
                 raise ValueError("Length must be between 4 and 64")
         except ValueError:
@@ -514,30 +528,22 @@ class PasswordManagerApp(App):
         btn.bind(on_press=popup.dismiss)
         content.add_widget(btn)
         
-        # Improved keyboard handling
         def on_key_down(window, keycode, *args):
-            # Check if keycode is an integer or a tuple/list
             key = keycode if isinstance(keycode, int) else keycode[1] if isinstance(keycode, (tuple, list)) else None
             
-            # Use Kivy's key name for Enter
             if key == 13 or (isinstance(key, str) and key.lower() == 'enter'):
                 popup.dismiss()
                 return True
             return False
         
-        # Use Window.bind instead of popup.bind
         Window.bind(on_key_down=on_key_down)
         
-        # Ensure the binding is removed after popup closes
         def cleanup_binding(popup_instance):
             Window.unbind(on_key_down=on_key_down)
         
         popup.bind(on_dismiss=cleanup_binding)
         
-        # Mostrar el popup
         popup.open()
-        
-        # Programar el cierre automático después de 30 segundos
         Clock.schedule_once(lambda dt: popup.dismiss(), timeout)
         
 if __name__ == '__main__':
