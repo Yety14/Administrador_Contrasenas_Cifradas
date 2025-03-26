@@ -11,6 +11,8 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.base import EventLoop
 import random
 import string
 
@@ -53,13 +55,53 @@ class CustomTabbedPanelItem(TabbedPanelItem):
             texture_size=lambda lbl, size: setattr(self, 'width', max(size[0] + 40, min_width)))
         self.add_widget(label)
 
+class TabbedTextInput(TextInput):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.multiline = False
+        self.bind(on_text_validate=self.on_enter)
+        
+    def keyboard_on_key_down(self, window, keycode, text, modifiers):
+        key, key_str = keycode
+        if key == 9:  # Código para la tecla Tab
+            self.focus_next()
+            return True
+        return super().keyboard_on_key_down(window, keycode, text, modifiers)
+    
+    def on_enter(self, instance):
+        self.focus_next()
+
+    def focus_next(self):
+        app = App.get_running_app()
+        text_inputs = []
+        
+        # Buscar todos los TextInput en todas las pestañas
+        for tab in app.tab_panel.tab_list:
+            tab_content = tab.content
+            for child in tab_content.walk(restrict=True):
+                if isinstance(child, TextInput) and child != self:
+                    text_inputs.append(child)
+        
+        if text_inputs:
+            try:
+                current_index = text_inputs.index(self)
+                next_index = (current_index + 1) % len(text_inputs)
+            except ValueError:
+                next_index = 0
+                
+            next_input = text_inputs[next_index]
+            Clock.schedule_once(lambda dt: setattr(next_input, 'focus', True), 0.1)
+
 class PasswordManagerApp(App):
     def build(self):
+        Window.bind(on_request_close=self.on_request_close)
+        EventLoop.ensure_window()
+        
         self.tab_panel = TabbedPanel(
             do_default_tab=False,
             tab_width=120,
             tab_height=40,
-            background_color=(0.9, 0.9, 0.9, 1)  # Fondo más claro para mejor contraste
+            background_color=(0.9, 0.9, 0.9, 1)
         )
         
         tabs = [
@@ -75,7 +117,28 @@ class PasswordManagerApp(App):
             self.tab_panel.add_widget(tab)
             
         return self.tab_panel
-
+    
+    def on_request_close(self, *args):
+        """Manejador mejorado para cerrar la aplicación"""
+        try:
+            # Cerrar todos los popups
+            for child in Window.children[:]:
+                if isinstance(child, Popup):
+                    child.dismiss()
+            
+            # Detener la aplicación
+            self.stop()
+            
+            # Cerrar la ventana
+            if hasattr(Window, 'close'):
+                Window.close()
+            
+            return True
+        except Exception as e:
+            print(f"Error al cerrar: {e}")
+            import os
+            os._exit(0)  # Fuerza el cierre si todo falla
+        
     def create_save_tab(self):
         save_tab = CustomTabbedPanelItem()
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -87,21 +150,21 @@ class PasswordManagerApp(App):
         # User field
         user_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         user_layout.add_widget(Label(text="Usuario:", size_hint_x=None, width=150))
-        self.username_input = TextInput(hint_text="Usuario", multiline=False)
+        self.username_input = TabbedTextInput(hint_text="Usuario")
         user_layout.add_widget(self.username_input)
         save_section.add_widget(user_layout)
         
         # Site/App field
         site_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         site_layout.add_widget(Label(text="Sitio/Aplicación:", size_hint_x=None, width=150))
-        self.site_input = TextInput(hint_text="Sitio/Aplicación", multiline=False)
+        self.site_input = TabbedTextInput(hint_text="Sitio/Aplicación")
         site_layout.add_widget(self.site_input)
         save_section.add_widget(site_layout)
         
         # Password field
         pass_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         pass_layout.add_widget(Label(text="Contraseña:", size_hint_x=None, width=150))
-        self.password_input = TextInput(hint_text="Contraseña", multiline=False, password=True)
+        self.password_input = TabbedTextInput(hint_text="Contraseña", password=True)
         pass_layout.add_widget(self.password_input)
         
         # Show password checkbox
@@ -130,7 +193,7 @@ class PasswordManagerApp(App):
         # Password length
         length_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         length_layout.add_widget(Label(text="Longitud:", size_hint_x=None, width=150))
-        self.length_input = TextInput(text="16", multiline=False, size_hint_x=None, width=100)
+        self.length_input = TabbedTextInput(text="16", multiline=False, size_hint_x=None, width=100)
         length_layout.add_widget(self.length_input)
         generator_section.add_widget(length_layout)
         
@@ -160,7 +223,7 @@ class PasswordManagerApp(App):
         main_layout.add_widget(generator_section)
         save_tab.add_widget(main_layout)
         return save_tab
-    
+        
     def create_recover_tab(self):
         """Create the recover password tab."""
         recover_tab = CustomTabbedPanelItem(text='Recuperar Contraseña')
@@ -172,21 +235,21 @@ class PasswordManagerApp(App):
         # User field
         user_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         user_layout.add_widget(Label(text="Usuario:", size_hint_x=None, width=150))
-        self.rec_user_input = TextInput(hint_text="Usuario", multiline=False)
+        self.rec_user_input = TabbedTextInput(hint_text="Usuario")
         user_layout.add_widget(self.rec_user_input)
         recover_tab_layout.add_widget(user_layout)
 
         # Site/App field
         site_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         site_layout.add_widget(Label(text="Sitio/Aplicación:", size_hint_x=None, width=150))
-        self.rec_site_input = TextInput(hint_text="Sitio/Aplicación", multiline=False)
+        self.rec_site_input = TabbedTextInput(hint_text="Sitio/Aplicación")
         site_layout.add_widget(self.rec_site_input)
         recover_tab_layout.add_widget(site_layout)
 
         # Admin password field
         admin_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
-        self.admin_pass_input = TextInput(hint_text="Contraseña Admin", multiline=False, password=True)
+        self.admin_pass_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
         admin_layout.add_widget(self.admin_pass_input)
         
         # Show password checkbox
@@ -221,7 +284,7 @@ class PasswordManagerApp(App):
         # Admin password field
         admin_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
-        self.list_admin_input = TextInput(hint_text="Contraseña Admin", multiline=False, password=True)
+        self.list_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
         admin_layout.add_widget(self.list_admin_input)
         
         # Show password checkbox
@@ -259,21 +322,21 @@ class PasswordManagerApp(App):
         # User field
         user_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         user_layout.add_widget(Label(text="Usuario:", size_hint_x=None, width=150))
-        self.del_user_input = TextInput(hint_text="Usuario", multiline=False)
+        self.del_user_input = TabbedTextInput(hint_text="Usuario")
         user_layout.add_widget(self.del_user_input)
         delete_tab_layout.add_widget(user_layout)
 
         # Site/App field
         site_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         site_layout.add_widget(Label(text="Sitio/Aplicación:", size_hint_x=None, width=150))
-        self.del_site_input = TextInput(hint_text="Sitio/Aplicación", multiline=False)
+        self.del_site_input = TabbedTextInput(hint_text="Sitio/Aplicación")
         site_layout.add_widget(self.del_site_input)
         delete_tab_layout.add_widget(site_layout)
 
         # Admin password field
         admin_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
-        self.del_admin_input = TextInput(hint_text="Contraseña Admin", multiline=False, password=True)
+        self.del_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
         admin_layout.add_widget(self.del_admin_input)
         
         # Show password checkbox
