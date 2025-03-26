@@ -22,9 +22,13 @@ SALT_SIZE = 16  # Tamaño del salt en bytes
 
 def ensure_passwd_dir():
     """Crea el directorio seguro con permisos adecuados"""
+    print(f"Creando directorio: {PASSWD_DIR}")  # Depuración
     os.makedirs(PASSWD_DIR, exist_ok=True)
+    
     if os.name == 'posix':
         os.chmod(PASSWD_DIR, 0o700)
+
+    print(f"Directorio creado: {os.path.exists(PASSWD_DIR)}")  # Verifica si existe
 
 def init_database(admin_password):
     """Inicializa la base de datos y archivos de seguridad"""

@@ -74,6 +74,9 @@ class PasswordManagerGUI:
 
         ttk.Button(tab, text="Guardar", command=self.save_password).grid(
             row=len(fields), column=0, columnspan=2, pady=10)
+        
+        self.pass_entry.bind("<Return>", lambda event: self.save_password())
+
 
     def create_recover_tab(self):
         """Pestaña para recuperar contraseñas"""
@@ -100,6 +103,7 @@ class PasswordManagerGUI:
 
         ttk.Button(tab, text="Recuperar", command=self.recover_password).grid(
             row=len(fields), column=0, columnspan=2, pady=10)
+        self.admin_pass_entry.bind("<Return>", lambda event: self.recover_password())
 
     def create_list_tab(self):
         """Pestaña para listar credenciales"""
@@ -126,6 +130,7 @@ class PasswordManagerGUI:
 
         tab.columnconfigure(1, weight=1)
         tab.rowconfigure(1, weight=1)
+        self.list_admin_entry.bind("<Return>", lambda event: self.list_passwords())
 
     def create_delete_tab(self):
         """Pestaña para eliminar credenciales"""
@@ -148,6 +153,7 @@ class PasswordManagerGUI:
 
         ttk.Button(tab, text="Eliminar", command=self.remove_password).grid(
             row=len(fields), column=0, columnspan=2, pady=10)
+        self.del_admin_entry.bind("<Return>", lambda event: self.remove_password())
 
     def verify_admin_password_gui(self, attempt):
         """Versión adaptada para GUI con manejo de bloqueos"""
