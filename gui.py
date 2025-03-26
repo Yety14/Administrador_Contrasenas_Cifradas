@@ -1,4 +1,5 @@
 import os
+import json  # Importar el módulo json
 import tkinter as tk
 from tkinter import messagebox, ttk, simpledialog, font
 import sqlite3
@@ -19,6 +20,8 @@ from password_manager import (
     LOCKOUT_TIME
 )
 
+CONFIG_FILE = "config.json"  # Archivo de configuración
+
 class PasswordManagerGUI:
     def __init__(self, root):
         self.root = root
@@ -28,7 +31,10 @@ class PasswordManagerGUI:
         # Configuraciones de tema y personalización
         self.current_theme = tk.StringVar(value="light")
         self.font_size = tk.IntVar(value=10)
+        self.custom_font = font.Font(family='Arial', size=self.font_size.get())
+        self.bold_font = font.Font(family='Arial', size=self.font_size.get(), weight='bold')
         
+        self.load_config()  # Cargar configuración al iniciar
         self.configure_styles()
         self.setup_ui()
         self.setup_theme_menu()
@@ -36,6 +42,30 @@ class PasswordManagerGUI:
         if not os.path.exists(PASSWD_DB):
             self.setup_admin_password()
 
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)  # Manejar el cierre de la ventana
+    
+    def load_config(self):
+        """Carga la configuración del tema y tamaño de fuente desde un archivo JSON"""
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                self.current_theme.set(config.get("theme", "light"))
+                self.font_size.set(config.get("font_size", 10))
+
+    def save_config(self):
+        """Guarda la configuración del tema y tamaño de fuente en un archivo JSON"""
+        config = {
+            "theme": self.current_theme.get(),
+            "font_size": self.font_size.get()
+        }
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f)
+
+    def on_closing(self):
+        """Maneja el cierre de la aplicación y guarda la configuración"""
+        self.save_config()  # Guardar configuración al cerrar
+        self.root.destroy()
+        
     def configure_styles(self):
         """Configura estilos con soporte para temas claro y oscuro"""
         style = ttk.Style()
@@ -88,6 +118,10 @@ class PasswordManagerGUI:
         current_theme = self.themes[self.current_theme.get()]
         style = ttk.Style()
 
+        # Actualizar fuentes
+        self.custom_font.configure(size=self.font_size.get())
+        self.bold_font.configure(size=self.font_size.get())
+        
         # Configurar colores base
         self.root.configure(bg=current_theme['bg_color'])
         
@@ -95,22 +129,25 @@ class PasswordManagerGUI:
         style.configure('.', 
                       background=current_theme['bg_color'],
                       foreground=current_theme['fg_color'],
-                      font=('Arial', self.font_size.get()))
+                      font=self.custom_font)
         
         style.configure('TFrame', background=current_theme['frame_bg'])
         style.configure('TLabel', 
                        background=current_theme['frame_bg'],
-                       foreground=current_theme['text_color'])
+                       foreground=current_theme['text_color'],
+                       font=self.custom_font)
         style.configure('TButton', 
                        background=current_theme['button_bg'],
                        foreground=current_theme['button_fg'],
-                       font=('Arial', self.font_size.get(), 'bold'))
+                       font=self.bold_font)
         style.configure('TEntry',
                        fieldbackground=current_theme['entry_bg'],
-                       foreground=current_theme['entry_fg'])
+                       foreground=current_theme['entry_fg'],
+                       font=self.custom_font)
         style.configure('TCheckbutton',
                        background=current_theme['frame_bg'],
-                       foreground=current_theme['text_color'])
+                       foreground=current_theme['text_color'],
+                       font=self.custom_font)
         
         # Configurar Notebook
         style.configure('TNotebook', background=current_theme['bg_color'])
@@ -124,10 +161,12 @@ class PasswordManagerGUI:
         style.configure('Treeview',
                       background=current_theme['tree_bg'],
                       foreground=current_theme['tree_fg'],
-                      fieldbackground=current_theme['tree_bg'])
+                      fieldbackground=current_theme['tree_bg'],
+                      font=self.custom_font)
         style.configure('Treeview.Heading',
                       background=current_theme['tree_heading_bg'],
-                      foreground=current_theme['tree_heading_fg'])
+                      foreground=current_theme['tree_heading_fg'],
+                      font=self.bold_font)
         
         # Actualizar todos los widgets
         self.update_widget_colors()
@@ -141,28 +180,44 @@ class PasswordManagerGUI:
             if isinstance(widget, tk.Frame):
                 widget.configure(bg=current_theme['frame_bg'])
             elif isinstance(widget, tk.Label):
-                widget.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+                widget.configure(bg=current_theme['frame_bg'], 
+                               fg=current_theme['text_color'],
+                               font=self.custom_font)
             elif isinstance(widget, tk.Entry):
-                widget.configure(bg=current_theme['entry_bg'], fg=current_theme['entry_fg'],
-                               insertbackground=current_theme['entry_fg'])
+                widget.configure(bg=current_theme['entry_bg'], 
+                               fg=current_theme['entry_fg'],
+                               insertbackground=current_theme['entry_fg'],
+                               font=self.custom_font)
             elif isinstance(widget, tk.Button):
-                widget.configure(bg=current_theme['button_bg'], fg=current_theme['button_fg'])
+                widget.configure(bg=current_theme['button_bg'], 
+                               fg=current_theme['button_fg'],
+                               font=self.bold_font)
             elif isinstance(widget, tk.Checkbutton):
-                widget.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+                widget.configure(bg=current_theme['frame_bg'], 
+                               fg=current_theme['text_color'],
+                               font=self.custom_font)
             
             # Actualizar también los hijos de los widgets
             for child in widget.winfo_children():
                 if isinstance(child, tk.Frame):
                     child.configure(bg=current_theme['frame_bg'])
                 elif isinstance(child, tk.Label):
-                    child.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+                    child.configure(bg=current_theme['frame_bg'], 
+                                  fg=current_theme['text_color'],
+                                  font=self.custom_font)
                 elif isinstance(child, tk.Entry):
-                    child.configure(bg=current_theme['entry_bg'], fg=current_theme['entry_fg'],
-                                   insertbackground=current_theme['entry_fg'])
+                    child.configure(bg=current_theme['entry_bg'], 
+                                  fg=current_theme['entry_fg'],
+                                  insertbackground=current_theme['entry_fg'],
+                                  font=self.custom_font)
                 elif isinstance(child, tk.Button):
-                    child.configure(bg=current_theme['button_bg'], fg=current_theme['button_fg'])
+                    child.configure(bg=current_theme['button_bg'], 
+                                  fg=current_theme['button_fg'],
+                                  font=self.bold_font)
                 elif isinstance(child, tk.Checkbutton):
-                    child.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+                    child.configure(bg=current_theme['frame_bg'], 
+                                  fg=current_theme['text_color'],
+                                  font=self.custom_font)
 
     def setup_theme_menu(self):
         """Crea un menú para personalización con botones de zoom"""
@@ -179,13 +234,9 @@ class PasswordManagerGUI:
         theme_menu.add_radiobutton(label="Claro", command=lambda: self.apply_theme("light"))
         theme_menu.add_radiobutton(label="Oscuro", command=lambda: self.apply_theme("dark"))
 
-        # Botones de zoom
-        view_menu.add_command(label="Ampliar (Ctrl+)", command=self.zoom_in)
-        view_menu.add_command(label="Alejar (Ctrl-)", command=self.zoom_out)
-
-        # Botón de maximizar/restaurar
-        view_menu.add_separator()
-        view_menu.add_command(label="Maximizar/Restaurar", command=self.toggle_window_size)
+        # Botones de zoom con emoticonos
+        view_menu.add_command(label="🔍 Ampliar (Ctrl+)", command=self.zoom_in)  # Lupa y más
+        view_menu.add_command(label="🔎 Alejar (Ctrl-)", command=self.zoom_out)   # Lupa y menos
 
         # Atajos de teclado
         self.root.bind("<Control-plus>", lambda e: self.zoom_in())
@@ -197,21 +248,12 @@ class PasswordManagerGUI:
         if self.font_size.get() < 20:  # Límite máximo
             self.font_size.set(self.font_size.get() + 1)
             self.apply_theme()
-            self.setup_ui()
 
     def zoom_out(self):
         """Reduce el tamaño de fuente"""
         if self.font_size.get() > 8:  # Límite mínimo
             self.font_size.set(self.font_size.get() - 1)
             self.apply_theme()
-            self.setup_ui()
-            
-    def update_font_size(self, size):
-        """Actualiza el tamaño de fuente"""
-        self.font_size.set(size)
-        self.apply_theme()
-        # Forzar refresco de ventanas
-        self.setup_ui()
 
     def toggle_window_size(self):
         """Alterna entre ventana maximizada y restaurada"""
@@ -222,6 +264,11 @@ class PasswordManagerGUI:
 
     def setup_ui(self):
         """Configura la interfaz de usuario principal con un diseño mejorado"""
+        # Limpiar widgets existentes primero
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Notebook) or isinstance(widget, ttk.Frame):
+                widget.destroy()
+        
         # Frame principal con un poco de padding
         main_frame = ttk.Frame(self.root, padding="20 20 20 20")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -257,7 +304,7 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Guardar Nueva Contraseña", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
+                  font=self.bold_font).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         # Campos de entrada
         fields = [
@@ -267,8 +314,8 @@ class PasswordManagerGUI:
         ]
         
         for i, (label, attr, *options) in enumerate(fields, start=1):
-            ttk.Label(tab, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="e")
-            entry = ttk.Entry(tab, show="*" if options else "", width=40)
+            ttk.Label(tab, text=label, font=self.custom_font).grid(row=i, column=0, padx=10, pady=5, sticky="e")
+            entry = ttk.Entry(tab, show="*" if options else "", width=40, font=self.custom_font)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
             
@@ -295,7 +342,7 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Recuperar Contraseña", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
+                  font=self.bold_font).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         # Campos de entrada
         fields = [
@@ -305,8 +352,8 @@ class PasswordManagerGUI:
         ]
         
         for i, (label, attr, *options) in enumerate(fields, start=1):
-            ttk.Label(tab, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="e")
-            entry = ttk.Entry(tab, show="*" if options else "", width=40)
+            ttk.Label(tab, text=label, font=self.custom_font).grid(row=i, column=0, padx=10, pady=5, sticky="e")
+            entry = ttk.Entry(tab, show="*" if options else "", width=40, font=self.custom_font)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
             
@@ -321,7 +368,7 @@ class PasswordManagerGUI:
             tab.columnconfigure(1, weight=1)
 
         # Resultado - Usamos un Label directo en lugar de StringVar para evitar el punto blanco
-        self.result_label = ttk.Label(tab, text="", wraplength=300)
+        self.result_label = ttk.Label(tab, text="", wraplength=300, font=self.custom_font)
         self.result_label.grid(row=len(fields)+1, column=0, columnspan=3, pady=10)
 
         recover_btn = ttk.Button(tab, text="🔍 Recuperar", command=self.recover_password)
@@ -336,10 +383,10 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Listar Credenciales", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
+                  font=self.bold_font).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
-        ttk.Label(tab, text="🔒 Contraseña Admin:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.list_admin_entry = ttk.Entry(tab, show="*", width=40)
+        ttk.Label(tab, text="🔒 Contraseña Admin:", font=self.custom_font).grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        self.list_admin_entry = ttk.Entry(tab, show="*", width=40, font=self.custom_font)
         self.list_admin_entry.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
         
         # Checkbox para mostrar contraseña
@@ -376,7 +423,7 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Eliminar Credencial", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
+                  font=self.bold_font).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         # Campos de entrada
         fields = [
@@ -386,8 +433,8 @@ class PasswordManagerGUI:
         ]
         
         for i, (label, attr, *options) in enumerate(fields, start=1):
-            ttk.Label(tab, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="e")
-            entry = ttk.Entry(tab, show="*" if options else "", width=40)
+            ttk.Label(tab, text=label, font=self.custom_font).grid(row=i, column=0, padx=10, pady=5, sticky="e")
+            entry = ttk.Entry(tab, show="*" if options else "", width=40, font=self.custom_font)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
             
