@@ -16,12 +16,14 @@ from kivy.base import EventLoop
 from kivy.metrics import dp
 from kivy.uix.spinner import Spinner
 import random
+from kivy.uix.floatlayout import FloatLayout
 import string
 import os
 import sqlite3
 import hashlib
 import hmac
 import base64
+from kivy.config import Config
 from cryptography.fernet import Fernet
 
 # Configuración de paths
@@ -273,37 +275,154 @@ class TabbedTextInput(TextInput):
                         Clock.schedule_once(lambda dt: setattr(current_tab.tab_order[0], 'focus', True), 0.1)
 
 class PasswordManagerApp(App):
+    
+    MIN_FONT_SIZE = 15
+    DEFAULT_FONT_SIZE = 20
+    MAX_FONT_SIZE = 25
+    
     def build(self):
+        # 1. Cargar configuración AL INICIO
+        Config.read('config.ini')
+        
         Window.bind(on_request_close=self.on_request_close)
         EventLoop.ensure_window()
         
-        # Verificar si es primera ejecución
+        # Establecer tamaño de fuente desde configuración o por defecto
+        self.font_size = Config.getint('ui', 'font_size', fallback=self.DEFAULT_FONT_SIZE)
+        
+        # Limitar el tamaño dentro de los rangos permitidos
+        self.font_size = max(self.MIN_FONT_SIZE, min(self.font_size, self.MAX_FONT_SIZE))
+        
+        # 2. Verificar si es primera ejecución
         if not os.path.exists(PASSWD_DIR) or not os.path.exists(PASSWD_DB):
             self.show_admin_setup_popup()
             return Label(text="Por favor configure la contraseña de administrador")
         
-        return self.create_main_interface()
+        # 3. Crear interfaz principal
+        root_layout = FloatLayout()
+        self.tab_panel = self.create_main_interface()
+        
+        # 4. Añadir controles de zoom
+        zoom_controls = BoxLayout(
+            size_hint=(None, None), 
+            size=(100, 40), 
+            pos_hint={'right': 0.98, 'top': 0.98},
+            spacing=5
+        )
+        
+        btn_zoom_out = Button(text='-', size_hint_x=None, width=40)
+        btn_zoom_in = Button(text='+', size_hint_x=None, width=40)
+        
+        btn_zoom_out.bind(on_press=self.zoom_out)
+        btn_zoom_in.bind(on_press=self.zoom_in)
+        
+        zoom_controls.add_widget(btn_zoom_out)
+        zoom_controls.add_widget(btn_zoom_in)
+        
+        # 5. Añadir feedback de tamaño actual
+        self.zoom_feedback = Label(
+            text=f"Tamaño: {self.font_size}px",
+            size_hint=(None, None),
+            size=(150, 30),
+            pos_hint={'right': 0.95, 'top': 0.90},
+            color=(0.2, 0.2, 0.2, 0.7)
+        )
+        
+        # 6. Añadir todo al layout principal
+        root_layout.add_widget(self.tab_panel)
+        root_layout.add_widget(zoom_controls)
+        root_layout.add_widget(self.zoom_feedback)
+        
+        # 7. Programar actualización de fuentes después de que la UI esté completamente cargada
+        Clock.schedule_once(lambda dt: self.update_font_sizes(self.tab_panel), 0.1)
+        
+        return root_layout
     
-    def on_request_close(self, *args):
-        """Manejador para cerrar la aplicación"""
+    def on_key_down(self, window, key, *args):
+        if key == 107 and 'ctrl' in args[3]:  # Ctrl++
+            self.zoom_in(None)
+        elif key == 109 and 'ctrl' in args[3]:  # Ctrl+-
+            self.zoom_out(None)
+        
+    def update_font_sizes(self, root_widget=None):
+        """Actualiza todos los textos de la interfaz con el tamaño actual"""
+        if not hasattr(self, 'font_size'):
+            return
+            
+        root = root_widget if root_widget is not None else self.root
+        if root is None:
+            return
+        
+        # Actualizar widgets principales
+        for widget in root.walk():
+            if isinstance(widget, (Label, Button, TextInput, Spinner)):
+                widget.font_size = self.font_size
+            
+            # Tamaño especial para pestañas
+            if isinstance(widget, TabbedPanelItem):
+                for child in widget.children:
+                    if isinstance(child, Label):
+                        child.font_size = max(self.font_size - 2, 12)
+        
+        # Actualizar feedback de zoom
+        if hasattr(self, 'zoom_feedback'):
+            self.zoom_feedback.text = f"Tamaño: {self.font_size}px"
+        
+        # Actualizar popups abiertos si existen
+        for child in Window.children:
+            if isinstance(child, Popup):
+                for popup_widget in child.content.walk():
+                    if isinstance(popup_widget, (Label, Button, TextInput)):
+                        popup_widget.font_size = self.font_size
+
+    def zoom_out(self, instance):
+        self.font_size = max(self.font_size - 1, self.MIN_FONT_SIZE)
+        self.update_font_sizes(self.tab_panel)
+        self.save_font_size()
+
+    def zoom_in(self, instance):
+        self.font_size = min(self.font_size + 1, self.MAX_FONT_SIZE)
+        self.update_font_sizes(self.tab_panel)
+        self.save_font_size()
+        
+    def save_font_size(self):
+        """Guarda el tamaño de fuente actual en la configuración"""
+        from kivy.config import Config
         try:
-            # Cerrar todos los popups
+            if not Config.has_section('ui'):
+                Config.add_section('ui')
+            Config.set('ui', 'font_size', str(self.font_size))
+            Config.write()
+        except Exception as e:
+            print(f"Error guardando tamaño de fuente: {e}")
+            
+    def on_request_close(self, *args):
+        """Manejador para cerrar la aplicación correctamente"""
+        try:
+            # 1. Guardar configuración actual primero
+            self.save_font_size()
+            
+            # 2. Cerrar todos los popups abiertos
             for child in Window.children[:]:
                 if isinstance(child, Popup):
                     child.dismiss()
             
-            # Detener la aplicación
+            # 3. Detener la aplicación
             self.stop()
             
-            # Cerrar la ventana
+            # 4. Forzar cierre de la ventana si es necesario
             if hasattr(Window, 'close'):
                 Window.close()
+            
+            # 5. En algunos sistemas es necesario esto
+            import os
+            os._exit(0)
             
             return True
         except Exception as e:
             print(f"Error al cerrar: {e}")
             import os
-            os._exit(0)
+            os._exit(1)
     
     def show_admin_setup_popup(self):
         content = BoxLayout(orientation='vertical', spacing=10, padding=20)
