@@ -3,6 +3,8 @@ import hashlib
 import sqlite3
 import hmac
 import base64
+import random
+import string
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 
@@ -168,6 +170,56 @@ def delete_password(username, site, admin_password):
     
     return rows_deleted > 0
 
+def generate_password(length=16, use_upper=True, use_lower=True, use_numbers=True, use_special=True):
+    """
+    Genera una contraseña aleatoria segura con los parámetros especificados
+    
+    Args:
+        length: Longitud de la contraseña (4-64)
+        use_upper: Incluir mayúsculas
+        use_lower: Incluir minúsculas
+        use_numbers: Incluir números
+        use_special: Incluir caracteres especiales
+    
+    Returns:
+        str: Contraseña generada
+    """
+    if length < 4 or length > 64:
+        raise ValueError("La longitud debe estar entre 4 y 64 caracteres")
+    
+    characters = []
+    if use_upper:
+        characters.extend(string.ascii_uppercase)
+    if use_lower:
+        characters.extend(string.ascii_lowercase)
+    if use_numbers:
+        characters.extend(string.digits)
+    if use_special:
+        characters.extend('!@#$%^&*()_+-=[]{}|;:,.<>?')
+    
+    if not characters:
+        raise ValueError("Debe seleccionar al menos un tipo de caracteres")
+    
+    # Aseguramos que la contraseña tenga al menos un carácter de cada tipo seleccionado
+    password = []
+    if use_upper:
+        password.append(random.choice(string.ascii_uppercase))
+    if use_lower:
+        password.append(random.choice(string.ascii_lowercase))
+    if use_numbers:
+        password.append(random.choice(string.digits))
+    if use_special:
+        password.append(random.choice('!@#$%^&*()_+-=[]{}|;:,.<>?'))
+    
+    # Completamos el resto de la contraseña con caracteres aleatorios
+    remaining_length = length - len(password)
+    password.extend(random.choice(characters) for _ in range(remaining_length))
+    
+    # Mezclamos los caracteres para mayor aleatoriedad
+    random.shuffle(password)
+    
+    return ''.join(password)
+
 def main():
     ensure_passwd_dir()
     if not os.path.exists(PASSWD_DB):
@@ -180,7 +232,8 @@ def main():
         print("2. Recuperar contraseña")
         print("3. Listar credenciales")
         print("4. Eliminar contraseña")
-        print("5. Salir")
+        print("5. Generar contraseña segura")
+        print("6. Salir")
         opcion = input("Seleccione una opción: ")
         
         if opcion == "1":
@@ -223,6 +276,27 @@ def main():
             input("\nPresione Enter para continuar...")
             
         elif opcion == "5":
+            print("\n=== GENERADOR DE CONTRASEÑAS ===")
+            try:
+                length = int(input("Longitud (4-64): "))
+                use_upper = input("Incluir mayúsculas (S/n): ").lower() != 'n'
+                use_lower = input("Incluir minúsculas (S/n): ").lower() != 'n'
+                use_numbers = input("Incluir números (S/n): ").lower() != 'n'
+                use_special = input("Incluir caracteres especiales (S/n): ").lower() != 'n'
+                
+                password = generate_password(
+                    length=length,
+                    use_upper=use_upper,
+                    use_lower=use_lower,
+                    use_numbers=use_numbers,
+                    use_special=use_special
+                )
+                print(f"\n✓ Contraseña generada: {password}")
+            except ValueError as e:
+                print(f"\n✗ Error: {e}")
+            input("\nPresione Enter para continuar...")
+            
+        elif opcion == "6":
             print("Saliendo del sistema...")
             break
             
