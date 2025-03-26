@@ -13,6 +13,7 @@ from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.base import EventLoop
+from kivy.metrics import dp  # Import density-independent pixels
 import random
 import string
 
@@ -63,35 +64,40 @@ class TabbedTextInput(TextInput):
         
     def keyboard_on_key_down(self, window, keycode, text, modifiers):
         key, key_str = keycode
-        if key == 9:  # Código para la tecla Tab
+        if key == 9:  # Tab key
             self.focus_next()
             return True
         return super().keyboard_on_key_down(window, keycode, text, modifiers)
     
     def on_enter(self, instance):
         self.focus_next()
-
+    
     def focus_next(self):
+        # Obtener todos los inputs en la pestaña actual
         app = App.get_running_app()
-        text_inputs = []
+        current_tab = app.tab_panel.current_tab
+        inputs = []
         
-        # Buscar todos los TextInput en todas las pestañas
-        for tab in app.tab_panel.tab_list:
-            tab_content = tab.content
-            for child in tab_content.walk(restrict=True):
-                if isinstance(child, TextInput) and child != self:
-                    text_inputs.append(child)
+        # Función recursiva para recolectar todos los TextInput
+        def collect_inputs(widget):
+            for child in widget.children:
+                if isinstance(child, TextInput):
+                    inputs.append(child)
+                collect_inputs(child)
         
-        if text_inputs:
+        collect_inputs(current_tab.content)
+        
+        if inputs:
             try:
-                current_index = text_inputs.index(self)
-                next_index = (current_index + 1) % len(text_inputs)
+                current_index = inputs.index(self)
+                next_index = (current_index + 1) % len(inputs)
+                next_input = inputs[next_index]
+                Clock.schedule_once(lambda dt: setattr(next_input, 'focus', True), 0.1)
             except ValueError:
-                next_index = 0
-                
-            next_input = text_inputs[next_index]
-            Clock.schedule_once(lambda dt: setattr(next_input, 'focus', True), 0.1)
-
+                # Si no encontramos el input actual en la lista, enfocar el primero
+                if inputs:
+                    Clock.schedule_once(lambda dt: setattr(inputs[0], 'focus', True), 0.1)
+                    
 class PasswordManagerApp(App):
     def build(self):
         Window.bind(on_request_close=self.on_request_close)
@@ -141,7 +147,14 @@ class PasswordManagerApp(App):
         
     def create_save_tab(self):
         save_tab = CustomTabbedPanelItem()
-        main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        main_layout = BoxLayout(
+            orientation='vertical', 
+            padding=[10, Window.height * 0.1, 10, 10],  # Increased top padding to 10%
+            spacing=10
+        )
+        
+        # Title with bold formatting
+        main_layout.add_widget(Label(text="Guardar Nueva Contraseña", size_hint_y=None, height=30, bold=True))
         
         # Save Password Section
         save_section = BoxLayout(orientation='vertical', spacing=10)
@@ -176,10 +189,10 @@ class PasswordManagerApp(App):
         pass_layout.add_widget(show_pass_layout)
         save_section.add_widget(pass_layout)
         
-        # Save button
+        # Add a name to the save button to make it easier to reference
         save_btn = Button(text="Guardar", size_hint_y=None, height=40, on_press=self.save_password)
         save_section.add_widget(save_btn)
-        
+    
         # Divider
         divider = Widget(size_hint_y=None, height=1)
         with divider.canvas:
@@ -224,12 +237,20 @@ class PasswordManagerApp(App):
         save_tab.add_widget(main_layout)
         return save_tab
         
-    def create_recover_tab(self):
-        """Create the recover password tab."""
-        recover_tab = CustomTabbedPanelItem(text='Recuperar Contraseña')
-        recover_tab_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+    def update_cred_display(self, instance, value):
+        """Adjust the size of the credentials display label."""
+        self.cred_display.size_hint_y = None
+        self.cred_display.height = self.cred_display.texture_size[1]
 
-        # Title
+    def create_recover_tab(self):
+        recover_tab = CustomTabbedPanelItem(text='Recuperar Contraseña')
+        recover_tab_layout = BoxLayout(
+            orientation='vertical', 
+            padding=[10, Window.height * 0.1, 10, 10],  # Consistent top padding
+            spacing=10
+        )
+
+        # Title with bold formatting
         recover_tab_layout.add_widget(Label(text="Recuperar Contraseña", size_hint_y=None, height=30, bold=True))
 
         # User field
@@ -274,11 +295,14 @@ class PasswordManagerApp(App):
         return recover_tab
 
     def create_list_tab(self):
-        """Create the list credentials tab."""
         list_tab = CustomTabbedPanelItem(text='Listar Credenciales')
-        list_tab_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        list_tab_layout = BoxLayout(
+            orientation='vertical', 
+            padding=[10, Window.height * 0.1, 10, 10],  # Consistent top padding
+            spacing=10
+        )
 
-        # Title
+        # Title with bold formatting
         list_tab_layout.add_widget(Label(text="Listar Credenciales", size_hint_y=None, height=30, bold=True))
 
         # Admin password field
@@ -311,17 +335,15 @@ class PasswordManagerApp(App):
         list_tab.add_widget(list_tab_layout)
         return list_tab
 
-    def update_cred_display(self, instance, value):
-        """Adjust the size of the credentials display label."""
-        self.cred_display.size_hint_y = None
-        self.cred_display.height = self.cred_display.texture_size[1]
-
     def create_delete_tab(self):
-        """Create the delete credentials tab."""
         delete_tab = CustomTabbedPanelItem(text='Eliminar Credencial')
-        delete_tab_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        delete_tab_layout = BoxLayout(
+            orientation='vertical', 
+            padding=[10, Window.height * 0.1, 10, 10],  # Consistent top padding
+            spacing=10
+        )
 
-        # Title
+        # Title with bold formatting
         delete_tab_layout.add_widget(Label(text="Eliminar Credencial", size_hint_y=None, height=30, bold=True))
 
         # User field
@@ -483,20 +505,40 @@ class PasswordManagerApp(App):
     def show_popup(self, title, message, timeout=30):
         """Muestra un popup con botón de Aceptar que se cierra automáticamente después de timeout segundos"""
         content = BoxLayout(orientation='vertical', padding=10)
-        content.add_widget(Label(text=message))
+        message_label = Label(text=message)
+        content.add_widget(message_label)
         
-        btn = Button(text='Aceptar', size_hint=(1, 0.2))
         popup = Popup(title=title, content=content, size_hint=(0.8, 0.4))
         
-        # Configurar el cierre al hacer clic en Aceptar
+        btn = Button(text='Aceptar', size_hint=(1, 0.2))
         btn.bind(on_press=popup.dismiss)
         content.add_widget(btn)
+        
+        # Improved keyboard handling
+        def on_key_down(window, keycode, *args):
+            # Check if keycode is an integer or a tuple/list
+            key = keycode if isinstance(keycode, int) else keycode[1] if isinstance(keycode, (tuple, list)) else None
+            
+            # Use Kivy's key name for Enter
+            if key == 13 or (isinstance(key, str) and key.lower() == 'enter'):
+                popup.dismiss()
+                return True
+            return False
+        
+        # Use Window.bind instead of popup.bind
+        Window.bind(on_key_down=on_key_down)
+        
+        # Ensure the binding is removed after popup closes
+        def cleanup_binding(popup_instance):
+            Window.unbind(on_key_down=on_key_down)
+        
+        popup.bind(on_dismiss=cleanup_binding)
         
         # Mostrar el popup
         popup.open()
         
         # Programar el cierre automático después de 30 segundos
         Clock.schedule_once(lambda dt: popup.dismiss(), timeout)
-
+        
 if __name__ == '__main__':
     PasswordManagerApp().run()
