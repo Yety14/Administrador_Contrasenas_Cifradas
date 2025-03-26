@@ -1,8 +1,9 @@
 import os
 import tkinter as tk
-from tkinter import messagebox, ttk, simpledialog
+from tkinter import messagebox, ttk, simpledialog, font
 import sqlite3
 from datetime import datetime
+
 from password_manager import (
     ensure_passwd_dir, 
     init_database, 
@@ -23,69 +24,201 @@ class PasswordManagerGUI:
         self.root = root
         self.root.title("Gestor de Contraseñas Seguro")
         self.root.geometry("900x700")
+        
+        # Configuraciones de tema y personalización
+        self.current_theme = tk.StringVar(value="light")
+        self.font_size = tk.IntVar(value=10)
+        
         self.configure_styles()
         self.setup_ui()
+        self.setup_theme_menu()
         
         if not os.path.exists(PASSWD_DB):
             self.setup_admin_password()
 
     def configure_styles(self):
-        """Configura estilos modernos para la aplicación"""
+        """Configura estilos con soporte para temas claro y oscuro"""
         style = ttk.Style()
-        style.theme_use('clam')  # Modern theme
+        style.theme_use('clam')
 
-        # Color palette
-        bg_color = '#f0f0f0'
-        primary_color = '#3498db'
-        secondary_color = '#2ecc71'
-        text_color = '#2c3e50'
+        # Definir paletas de colores
+        self.themes = {
+            "light": {
+                "bg_color": '#f0f0f0',
+                "fg_color": '#2c3e50',
+                "primary_color": '#3498db',
+                "secondary_color": '#2ecc71',
+                "text_color": '#2c3e50',
+                "entry_bg": 'white',
+                "entry_fg": 'black',
+                "frame_bg": '#f0f0f0',
+                "button_bg": '#3498db',
+                "button_fg": 'white',
+                "tree_bg": 'white',
+                "tree_fg": 'black',
+                "tree_heading_bg": '#3498db',
+                "tree_heading_fg": 'white'
+            },
+            "dark": {
+                "bg_color": '#2c3e50',
+                "fg_color": '#ecf0f1',
+                "primary_color": '#34495e',
+                "secondary_color": '#27ae60',
+                "text_color": '#ecf0f1',
+                "entry_bg": '#34495e',
+                "entry_fg": 'white',
+                "frame_bg": '#34495e',
+                "button_bg": '#2980b9',
+                "button_fg": 'white',
+                "tree_bg": '#34495e',
+                "tree_fg": 'white',
+                "tree_heading_bg": '#2980b9',
+                "tree_heading_fg": 'white'
+            }
+        }
+
+        # Aplicar tema inicial
+        self.apply_theme()
+
+    def apply_theme(self, theme=None):
+        """Aplica el tema seleccionado a todos los widgets"""
+        if theme:
+            self.current_theme.set(theme)
         
-        # Configure root
-        self.root.configure(bg=bg_color)
+        current_theme = self.themes[self.current_theme.get()]
+        style = ttk.Style()
 
-        # Notebook style
-        style.configure('TNotebook', background=bg_color)
-        style.map('TNotebook.Tab', 
-            background=[('selected', primary_color), ('!selected', '#bdc3c7')],
-            foreground=[('selected', 'white'), ('!selected', text_color)]
-        )
-
-        # Button styles
-        style.configure('TButton', 
-            font=('Arial', 10, 'bold'),
-            background=primary_color,
-            foreground='white',
-            padding=10
-        )
-        style.map('TButton',
-            background=[('active', secondary_color)]
-        )
-
-        # Entry styles
-        style.configure('TEntry', 
-            font=('Arial', 10),
-            padding=5
-        )
-
-        # Label styles
+        # Configurar colores base
+        self.root.configure(bg=current_theme['bg_color'])
+        
+        # Configurar estilo de los widgets ttk
+        style.configure('.', 
+                      background=current_theme['bg_color'],
+                      foreground=current_theme['fg_color'],
+                      font=('Arial', self.font_size.get()))
+        
+        style.configure('TFrame', background=current_theme['frame_bg'])
         style.configure('TLabel', 
-            font=('Arial', 10, 'bold'),
-            background=bg_color,
-            foreground=text_color
-        )
+                       background=current_theme['frame_bg'],
+                       foreground=current_theme['text_color'])
+        style.configure('TButton', 
+                       background=current_theme['button_bg'],
+                       foreground=current_theme['button_fg'],
+                       font=('Arial', self.font_size.get(), 'bold'))
+        style.configure('TEntry',
+                       fieldbackground=current_theme['entry_bg'],
+                       foreground=current_theme['entry_fg'])
+        style.configure('TCheckbutton',
+                       background=current_theme['frame_bg'],
+                       foreground=current_theme['text_color'])
+        
+        # Configurar Notebook
+        style.configure('TNotebook', background=current_theme['bg_color'])
+        style.map('TNotebook.Tab', 
+                 background=[('selected', current_theme['primary_color']), 
+                            ('!selected', current_theme['bg_color'])],
+                 foreground=[('selected', 'white'), 
+                            ('!selected', current_theme['text_color'])])
+        
+        # Configurar Treeview
+        style.configure('Treeview',
+                      background=current_theme['tree_bg'],
+                      foreground=current_theme['tree_fg'],
+                      fieldbackground=current_theme['tree_bg'])
+        style.configure('Treeview.Heading',
+                      background=current_theme['tree_heading_bg'],
+                      foreground=current_theme['tree_heading_fg'])
+        
+        # Actualizar todos los widgets
+        self.update_widget_colors()
 
-        # Treeview styles
-        style.configure('Treeview', 
-            background='white',
-            foreground=text_color,
-            rowheight=25,
-            font=('Arial', 10)
-        )
-        style.configure('Treeview.Heading', 
-            font=('Arial', 10, 'bold'),
-            background=primary_color,
-            foreground='white'
-        )
+    def update_widget_colors(self):
+        """Actualiza manualmente los colores de los widgets que no son ttk"""
+        current_theme = self.themes[self.current_theme.get()]
+        
+        # Recorrer todos los widgets y actualizar sus colores
+        for widget in self.root.winfo_children():
+            if isinstance(widget, tk.Frame):
+                widget.configure(bg=current_theme['frame_bg'])
+            elif isinstance(widget, tk.Label):
+                widget.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+            elif isinstance(widget, tk.Entry):
+                widget.configure(bg=current_theme['entry_bg'], fg=current_theme['entry_fg'],
+                               insertbackground=current_theme['entry_fg'])
+            elif isinstance(widget, tk.Button):
+                widget.configure(bg=current_theme['button_bg'], fg=current_theme['button_fg'])
+            elif isinstance(widget, tk.Checkbutton):
+                widget.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+            
+            # Actualizar también los hijos de los widgets
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Frame):
+                    child.configure(bg=current_theme['frame_bg'])
+                elif isinstance(child, tk.Label):
+                    child.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+                elif isinstance(child, tk.Entry):
+                    child.configure(bg=current_theme['entry_bg'], fg=current_theme['entry_fg'],
+                                   insertbackground=current_theme['entry_fg'])
+                elif isinstance(child, tk.Button):
+                    child.configure(bg=current_theme['button_bg'], fg=current_theme['button_fg'])
+                elif isinstance(child, tk.Checkbutton):
+                    child.configure(bg=current_theme['frame_bg'], fg=current_theme['text_color'])
+
+    def setup_theme_menu(self):
+        """Crea un menú para personalización con botones de zoom"""
+        menu_bar = tk.Menu(self.root)
+        self.root.config(menu=menu_bar)
+
+        # Menú de Ver
+        view_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="Ver", menu=view_menu)
+
+        # Submenú de temas
+        theme_menu = tk.Menu(view_menu, tearoff=0)
+        view_menu.add_cascade(label="Tema", menu=theme_menu)
+        theme_menu.add_radiobutton(label="Claro", command=lambda: self.apply_theme("light"))
+        theme_menu.add_radiobutton(label="Oscuro", command=lambda: self.apply_theme("dark"))
+
+        # Botones de zoom
+        view_menu.add_command(label="Ampliar (Ctrl+)", command=self.zoom_in)
+        view_menu.add_command(label="Alejar (Ctrl-)", command=self.zoom_out)
+
+        # Botón de maximizar/restaurar
+        view_menu.add_separator()
+        view_menu.add_command(label="Maximizar/Restaurar", command=self.toggle_window_size)
+
+        # Atajos de teclado
+        self.root.bind("<Control-plus>", lambda e: self.zoom_in())
+        self.root.bind("<Control-minus>", lambda e: self.zoom_out())
+        self.root.bind("<Control-equal>", lambda e: self.zoom_in())  # Para teclados sin + independiente
+
+    def zoom_in(self):
+        """Aumenta el tamaño de fuente"""
+        if self.font_size.get() < 20:  # Límite máximo
+            self.font_size.set(self.font_size.get() + 1)
+            self.apply_theme()
+            self.setup_ui()
+
+    def zoom_out(self):
+        """Reduce el tamaño de fuente"""
+        if self.font_size.get() > 8:  # Límite mínimo
+            self.font_size.set(self.font_size.get() - 1)
+            self.apply_theme()
+            self.setup_ui()
+            
+    def update_font_size(self, size):
+        """Actualiza el tamaño de fuente"""
+        self.font_size.set(size)
+        self.apply_theme()
+        # Forzar refresco de ventanas
+        self.setup_ui()
+
+    def toggle_window_size(self):
+        """Alterna entre ventana maximizada y restaurada"""
+        if self.root.state() == 'zoomed':
+            self.root.state('normal')
+        else:
+            self.root.state('zoomed')
 
     def setup_ui(self):
         """Configura la interfaz de usuario principal con un diseño mejorado"""
@@ -124,7 +257,7 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Guardar Nueva Contraseña", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         # Campos de entrada
         fields = [
@@ -138,11 +271,20 @@ class PasswordManagerGUI:
             entry = ttk.Entry(tab, show="*" if options else "", width=40)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
+            
+            # Añadir checkbox para mostrar contraseña si es un campo de contraseña
+            if options:
+                show_pass_var = tk.BooleanVar(value=False)
+                show_pass_check = ttk.Checkbutton(tab, text="Mostrar", 
+                                               variable=show_pass_var,
+                                               command=lambda e=entry, v=show_pass_var: self.toggle_single_password(e, v))
+                show_pass_check.grid(row=i, column=2, padx=5, pady=5, sticky="w")
+            
             tab.columnconfigure(1, weight=1)
 
         # Botón de guardar con estilo
         save_btn = ttk.Button(tab, text="💾 Guardar", command=self.save_password)
-        save_btn.grid(row=len(fields)+1, column=0, columnspan=2, pady=20)
+        save_btn.grid(row=len(fields)+1, column=0, columnspan=3, pady=20)
         
         self.pass_entry.bind("<Return>", lambda event: self.save_password())
 
@@ -153,7 +295,7 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Recuperar Contraseña", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         # Campos de entrada
         fields = [
@@ -167,14 +309,23 @@ class PasswordManagerGUI:
             entry = ttk.Entry(tab, show="*" if options else "", width=40)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
+            
+            # Añadir checkbox para mostrar contraseña si es un campo de contraseña
+            if options:
+                show_pass_var = tk.BooleanVar(value=False)
+                show_pass_check = ttk.Checkbutton(tab, text="Mostrar", 
+                                               variable=show_pass_var,
+                                               command=lambda e=entry, v=show_pass_var: self.toggle_single_password(e, v))
+                show_pass_check.grid(row=i, column=2, padx=5, pady=5, sticky="w")
+            
             tab.columnconfigure(1, weight=1)
 
-        self.result_var = tk.StringVar()
-        ttk.Label(tab, textvariable=self.result_var, wraplength=300).grid(
-            row=len(fields)+1, column=0, columnspan=2, pady=10)
+        # Resultado - Usamos un Label directo en lugar de StringVar para evitar el punto blanco
+        self.result_label = ttk.Label(tab, text="", wraplength=300)
+        self.result_label.grid(row=len(fields)+1, column=0, columnspan=3, pady=10)
 
         recover_btn = ttk.Button(tab, text="🔍 Recuperar", command=self.recover_password)
-        recover_btn.grid(row=len(fields)+2, column=0, columnspan=2, pady=20)
+        recover_btn.grid(row=len(fields)+2, column=0, columnspan=3, pady=20)
         
         self.admin_pass_entry.bind("<Return>", lambda event: self.recover_password())
 
@@ -185,11 +336,18 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Listar Credenciales", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         ttk.Label(tab, text="🔒 Contraseña Admin:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.list_admin_entry = ttk.Entry(tab, show="*", width=40)
         self.list_admin_entry.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        
+        # Checkbox para mostrar contraseña
+        self.list_show_pass_var = tk.BooleanVar(value=False)
+        show_pass_check = ttk.Checkbutton(tab, text="Mostrar", 
+                                        variable=self.list_show_pass_var,
+                                        command=lambda: self.toggle_single_password(self.list_admin_entry, self.list_show_pass_var))
+        show_pass_check.grid(row=1, column=2, padx=5, pady=5, sticky="w")
 
         # Treeview con estilo mejorado
         self.tree = ttk.Treeview(tab, columns=("Usuario", "Sitio"), show="headings", height=10)
@@ -197,15 +355,15 @@ class PasswordManagerGUI:
         self.tree.heading("Sitio", text="🌐 Sitio/Aplicación")
         self.tree.column("Usuario", width=200)
         self.tree.column("Sitio", width=300)
-        self.tree.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.tree.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(tab, orient="vertical", command=self.tree.yview)
-        scrollbar.grid(row=2, column=2, sticky="ns")
+        scrollbar.grid(row=2, column=3, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         list_btn = ttk.Button(tab, text="📋 Mostrar Credenciales", command=self.list_passwords)
-        list_btn.grid(row=3, column=0, columnspan=2, pady=20)
+        list_btn.grid(row=3, column=0, columnspan=3, pady=20)
 
         tab.columnconfigure(1, weight=1)
         tab.rowconfigure(2, weight=1)
@@ -218,7 +376,7 @@ class PasswordManagerGUI:
 
         # Título de sección
         ttk.Label(tab, text="Eliminar Credencial", 
-                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0,20))
 
         # Campos de entrada
         fields = [
@@ -232,12 +390,25 @@ class PasswordManagerGUI:
             entry = ttk.Entry(tab, show="*" if options else "", width=40)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
+            
+            # Añadir checkbox para mostrar contraseña si es un campo de contraseña
+            if options:
+                show_pass_var = tk.BooleanVar(value=False)
+                show_pass_check = ttk.Checkbutton(tab, text="Mostrar", 
+                                               variable=show_pass_var,
+                                               command=lambda e=entry, v=show_pass_var: self.toggle_single_password(e, v))
+                show_pass_check.grid(row=i, column=2, padx=5, pady=5, sticky="w")
+            
             tab.columnconfigure(1, weight=1)
 
         delete_btn = ttk.Button(tab, text="❌ Eliminar", command=self.remove_password)
-        delete_btn.grid(row=len(fields)+1, column=0, columnspan=2, pady=20)
+        delete_btn.grid(row=len(fields)+1, column=0, columnspan=3, pady=20)
         
         self.del_admin_entry.bind("<Return>", lambda event: self.remove_password())
+
+    def toggle_single_password(self, entry_widget, show_var):
+        """Alterna la visibilidad de una contraseña específica"""
+        entry_widget.configure(show="" if show_var.get() else "*")
 
     def verify_admin_password_gui(self, attempt):
         """Versión adaptada para GUI con manejo de bloqueos"""
@@ -297,30 +468,34 @@ class PasswordManagerGUI:
         admin_pw = self.admin_pass_entry.get()
 
         if not all([username, site, admin_pw]):
-            messagebox.showerror("Error", "Todos los campos son obligatorios")
+            self.result_label.config(text="Error: Todos los campos son obligatorios")
             return
 
         if not self.verify_admin_password_gui(admin_pw):
+            self.result_label.config(text="Error: Contraseña de administrador incorrecta")
             return
 
         stored_password = recover_password(username, site, admin_pw)
         if stored_password:
-            # Mostrar la contraseña recuperada en un diálogo seguro
+            # Mostramos el resultado en el label
+            result_text = f"Contraseña recuperada para {username} en {site}"
+            self.result_label.config(text=result_text)
+            
+            # Mostramos también en un diálogo de mensaje
             messagebox.showinfo("Contraseña Recuperada", 
-                            f"Contraseña para --{username}-- en --{site}-- recuperada exitosamente.\n\n"
-                            f"Contraseña:   {stored_password}\n\n\n"
-                            "La contraseña se ha copiado al portapapeles para su uso.")
-        
-            # Copiar al portapapeles para mayor seguridad
+                              f"Contraseña para {username} en {site}:\n\n{stored_password}\n\n"
+                              "La contraseña se ha copiado al portapapeles.")
+            
+            # Copiar al portapapeles
             self.root.clipboard_clear()
             self.root.clipboard_append(stored_password)
             
-            # Limpiar los campos de entrada
+            # Limpiar campos
             self.rec_user_entry.delete(0, tk.END)
             self.rec_site_entry.delete(0, tk.END)
             self.admin_pass_entry.delete(0, tk.END)
         else:
-            messagebox.showerror("Error", "No se encontró la credencial o la contraseña de administrador es incorrecta")
+            self.result_label.config(text="Error: No se encontró la credencial")
 
     def list_passwords(self):
         """Lista todas las credenciales almacenadas"""
@@ -336,13 +511,16 @@ class PasswordManagerGUI:
         # Obtener credenciales
         credentials = list_credentials(admin_pw)
         
+        # Limpiar campo de contraseña de admin después de usarla
+        self.list_admin_entry.delete(0, tk.END)
+        
         if credentials:
             for username, site in credentials:
                 self.tree.insert("", tk.END, values=(username, site))
             messagebox.showinfo("Éxito", f"Mostrando {len(credentials)} credenciales")
         else:
             messagebox.showinfo("Info", "No hay credenciales almacenadas")
-
+            
     def remove_password(self):
         """Elimina una credencial almacenada"""
         username = self.del_user_entry.get()
