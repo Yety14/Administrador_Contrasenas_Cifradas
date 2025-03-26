@@ -17,21 +17,160 @@ from kivy.metrics import dp
 from kivy.uix.spinner import Spinner
 import random
 import string
+import os
+import sqlite3
+import hashlib
+import hmac
+import base64
+from cryptography.fernet import Fernet
 
-# Try to import from password_manager, fall back to local implementations
-try:
-    from password_manager import (
-        store_password, 
-        recover_password, 
-        list_credentials, 
-        verify_admin_password,
-        delete_password
-    )
-except ImportError as e:
-    print(f"Import warning: {e}")
-    def missing_function(*args, **kwargs):
-        raise NotImplementedError("Password manager function not available")
-    store_password = recover_password = list_credentials = verify_admin_password = delete_password = missing_function
+# Configuración de paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PASSWD_DIR = os.path.join(BASE_DIR, "passwd")
+PASSWD_DB = os.path.join(PASSWD_DIR, "passwords.db")
+SECRET_KEY_FILE = os.path.join(PASSWD_DIR, "secret.key")
+
+# Configuración de seguridad
+PBKDF2_ITERATIONS = 100000
+
+def ensure_passwd_dir():
+    """Crea el directorio seguro con permisos adecuados"""
+    os.makedirs(PASSWD_DIR, exist_ok=True)
+    if os.name == 'posix':
+        os.chmod(PASSWD_DIR, 0o700)
+
+def init_database(admin_password):
+    """Inicializa la base de datos y archivos de seguridad"""
+    ensure_passwd_dir()
+
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+    
+    # Crear tablas
+    c.execute('''CREATE TABLE IF NOT EXISTS credentials
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT NOT NULL,
+                  site TEXT NOT NULL,
+                  encrypted_password TEXT NOT NULL,
+                  UNIQUE(username, site))''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS admin
+                 (id INTEGER PRIMARY KEY,
+                  password_hash TEXT NOT NULL,
+                  salt TEXT NOT NULL)''')
+    
+    # Si se proporciona una contraseña, guardarla
+    if admin_password:
+        salt = os.urandom(16)
+        hashed_pw = hashlib.pbkdf2_hmac('sha256', admin_password.encode(), salt, PBKDF2_ITERATIONS)
+        c.execute("INSERT OR REPLACE INTO admin VALUES (1, ?, ?)", 
+                 (base64.b64encode(hashed_pw).decode(), base64.b64encode(salt).decode()))
+    
+    conn.commit()
+    conn.close()
+    os.chmod(PASSWD_DB, 0o600)
+
+def get_cipher_key():
+    """Genera o recupera la clave de cifrado"""
+    ensure_passwd_dir()
+    if os.path.exists(SECRET_KEY_FILE):
+        with open(SECRET_KEY_FILE, "rb") as f:
+            return f.read()
+    else:
+        key = base64.urlsafe_b64encode(os.urandom(32))
+        with open(SECRET_KEY_FILE, "wb") as f:
+            f.write(key)
+        os.chmod(SECRET_KEY_FILE, 0o600)
+        return key
+
+# Configuración de cifrado
+KEY = get_cipher_key()
+cipher_suite = Fernet(KEY)
+
+def encrypt_password(password):
+    """Cifra una contraseña"""
+    return cipher_suite.encrypt(password.encode()).decode()
+
+def decrypt_password(encrypted_password):
+    """Descifra una contraseña"""
+    return cipher_suite.decrypt(encrypted_password.encode()).decode()
+
+def verify_admin_password(attempt):
+    """Verifica la contraseña admin"""
+    if not os.path.exists(PASSWD_DB):
+        return False
+        
+    conn = sqlite3.connect(PASSWD_DB)
+    c = conn.cursor()
+    c.execute("SELECT password_hash, salt FROM admin WHERE id = 1")
+    result = c.fetchone()
+    conn.close()
+    
+    if not result:
+        return False
+        
+    stored_hash = base64.b64decode(result[0].encode())
+    salt = base64.b64decode(result[1].encode())
+    attempt_hash = hashlib.pbkdf2_hmac('sha256', attempt.encode(), salt, PBKDF2_ITERATIONS)
+    
+    return hmac.compare_digest(stored_hash, attempt_hash)
+
+def store_password(username, site, password):
+    """Almacena una nueva contraseña o actualiza una existente"""
+    encrypted_pw = encrypt_password(password)
+    try:
+        conn = sqlite3.connect(PASSWD_DB)
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO credentials (username, site, encrypted_password) VALUES (?, ?, ?)",
+                 (username, site, encrypted_pw))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error storing password: {e}")
+        return False
+    finally:
+        conn.close()
+
+def recover_password(username, site, admin_password):
+    """Recupera una contraseña almacenada"""
+    if not verify_admin_password(admin_password):
+        return None
+        
+    try:
+        conn = sqlite3.connect(PASSWD_DB)
+        c = conn.cursor()
+        c.execute("SELECT encrypted_password FROM credentials WHERE username = ? AND site = ?", (username, site))
+        result = c.fetchone()
+        return decrypt_password(result[0]) if result else None
+    finally:
+        conn.close()
+
+def list_credentials(admin_password):
+    """Lista todas las credenciales"""
+    if not verify_admin_password(admin_password):
+        return None
+        
+    try:
+        conn = sqlite3.connect(PASSWD_DB)
+        c = conn.cursor()
+        c.execute("SELECT username, site FROM credentials ORDER BY username, site")
+        return c.fetchall()
+    finally:
+        conn.close()
+
+def delete_password(username, site, admin_password):
+    """Elimina una credencial almacenada"""
+    if not verify_admin_password(admin_password):
+        return False
+        
+    try:
+        conn = sqlite3.connect(PASSWD_DB)
+        c = conn.cursor()
+        c.execute("DELETE FROM credentials WHERE username = ? AND site = ?", (username, site))
+        conn.commit()
+        return c.rowcount > 0
+    finally:
+        conn.close()
 
 def generate_password(length=16, use_upper=True, use_lower=True, use_numbers=True, use_special=True):
     """Generate a random password with specified characteristics"""
@@ -59,6 +198,7 @@ class CustomTabbedPanelItem(TabbedPanelItem):
 
 class TabbedTextInput(TextInput):
     def __init__(self, **kwargs):
+        self.is_last_field = kwargs.pop('is_last_field', False)
         super().__init__(**kwargs)
         self.multiline = False
         self.bind(on_text_validate=self.on_enter)
@@ -71,7 +211,19 @@ class TabbedTextInput(TextInput):
         return super().keyboard_on_key_down(window, keycode, text, modifiers)
     
     def on_enter(self, instance):
-        self.focus_next()
+        if self.is_last_field:
+            app = App.get_running_app()
+            current_tab = app.tab_panel.current_tab.text
+            if current_tab == 'Guardar':
+                app.save_password(None)
+            elif current_tab == 'Recuperar':
+                app.retrieve_password(None)
+            elif current_tab == 'Eliminar':
+                app.remove_password(None)
+            elif current_tab == 'Listar':  # Añade este caso
+                app.list_credentials(None)
+        else:
+            self.focus_next()
     
     def focus_next(self):
         app = App.get_running_app()
@@ -93,6 +245,90 @@ class PasswordManagerApp(App):
         Window.bind(on_request_close=self.on_request_close)
         EventLoop.ensure_window()
         
+        # Verificar si es primera ejecución
+        if not os.path.exists(PASSWD_DIR) or not os.path.exists(PASSWD_DB):
+            self.show_admin_setup_popup()
+            return Label(text="Por favor configure la contraseña de administrador")
+        
+        return self.create_main_interface()
+    
+    def on_request_close(self, *args):
+        """Manejador para cerrar la aplicación"""
+        try:
+            # Cerrar todos los popups
+            for child in Window.children[:]:
+                if isinstance(child, Popup):
+                    child.dismiss()
+            
+            # Detener la aplicación
+            self.stop()
+            
+            # Cerrar la ventana
+            if hasattr(Window, 'close'):
+                Window.close()
+            
+            return True
+        except Exception as e:
+            print(f"Error al cerrar: {e}")
+            import os
+            os._exit(0)
+    
+    def show_admin_setup_popup(self):
+        content = BoxLayout(orientation='vertical', spacing=10, padding=20)
+        
+        lbl = Label(text="Configuración Inicial\nEstablezca la contraseña de administrador", 
+                   halign='center', font_size=16)
+        content.add_widget(lbl)
+        
+        self.setup_pass1 = TextInput(hint_text="Contraseña", password=True, size_hint_y=None, height=40)
+        content.add_widget(self.setup_pass1)
+        
+        self.setup_pass2 = TextInput(hint_text="Confirmar contraseña", password=True, size_hint_y=None, height=40)
+        content.add_widget(self.setup_pass2)
+        
+        btn_layout = BoxLayout(size_hint_y=None, height=50, spacing=10)
+        btn_accept = Button(text="Aceptar")
+        btn_cancel = Button(text="Cancelar")
+        btn_layout.add_widget(btn_cancel)
+        btn_layout.add_widget(btn_accept)
+        content.add_widget(btn_layout)
+        
+        self.setup_popup = Popup(title="Configuración Inicial", 
+                               content=content,
+                               size_hint=(0.8, 0.6),
+                               auto_dismiss=False)
+        
+        def setup_admin(instance):
+            if not self.setup_pass1.text or not self.setup_pass2.text:
+                lbl.text = "Error: Ambas contraseñas son requeridas"
+                lbl.color = (1, 0, 0, 1)
+                return
+                
+            if self.setup_pass1.text != self.setup_pass2.text:
+                lbl.text = "Error: Las contraseñas no coinciden"
+                lbl.color = (1, 0, 0, 1)
+                return
+                
+            try:
+                # Crear estructura inicial
+                init_database(self.setup_pass1.text)
+                self.setup_popup.dismiss()
+                
+                # Limpiar la ventana actual y mostrar la interfaz principal
+                Window.remove_widget(Window.children[0])
+                Window.add_widget(self.create_main_interface())
+                
+            except Exception as e:
+                lbl.text = f"Error en configuración: {str(e)}"
+                lbl.color = (1, 0, 0, 1)
+        
+        btn_accept.bind(on_press=setup_admin)
+        btn_cancel.bind(on_press=lambda x: (self.setup_popup.dismiss(), self.stop()))
+        
+        self.setup_popup.open()
+    
+    def create_main_interface(self):
+        """Crea la interfaz principal de pestañas"""
         self.tab_panel = TabbedPanel(
             do_default_tab=False,
             tab_width=120,
@@ -126,27 +362,6 @@ class PasswordManagerApp(App):
         if hasattr(current_tab, 'tab_order') and current_tab.tab_order:
             current_tab.tab_order[0].focus = True
     
-    def on_request_close(self, *args):
-        """Manejador mejorado para cerrar la aplicación"""
-        try:
-            # Cerrar todos los popups
-            for child in Window.children[:]:
-                if isinstance(child, Popup):
-                    child.dismiss()
-            
-            # Detener la aplicación
-            self.stop()
-            
-            # Cerrar la ventana
-            if hasattr(Window, 'close'):
-                Window.close()
-            
-            return True
-        except Exception as e:
-            print(f"Error al cerrar: {e}")
-            import os
-            os._exit(0)
-        
     def create_save_tab(self):
         save_tab = CustomTabbedPanelItem()
         main_layout = BoxLayout(
@@ -178,7 +393,7 @@ class PasswordManagerApp(App):
         # Password field
         pass_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         pass_layout.add_widget(Label(text="Contraseña:", size_hint_x=None, width=150))
-        self.password_input = TabbedTextInput(hint_text="Contraseña", password=True)
+        self.password_input = TabbedTextInput(hint_text="Contraseña", password=True, is_last_field=True)
         pass_layout.add_widget(self.password_input)
         
         # Show password checkbox
@@ -275,7 +490,7 @@ class PasswordManagerApp(App):
         # Admin password field
         admin_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
-        self.admin_pass_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
+        self.admin_pass_input = TabbedTextInput(hint_text="Contraseña Admin", password=True, is_last_field=True)
         admin_layout.add_widget(self.admin_pass_input)
         
         # Show password checkbox
@@ -316,7 +531,7 @@ class PasswordManagerApp(App):
         # Admin password field
         admin_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
-        self.list_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
+        self.list_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True,is_last_field=True)
         admin_layout.add_widget(self.list_admin_input)
         
         # Show password checkbox
@@ -374,7 +589,7 @@ class PasswordManagerApp(App):
         # Admin password field
         admin_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=40)
         admin_layout.add_widget(Label(text="Contraseña Admin:", size_hint_x=None, width=150))
-        self.del_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True)
+        self.del_admin_input = TabbedTextInput(hint_text="Contraseña Admin", password=True, is_last_field=True)
         admin_layout.add_widget(self.del_admin_input)
             
         # Show password checkbox
@@ -446,14 +661,67 @@ class PasswordManagerApp(App):
             self.show_popup("Error", "Todos los campos son obligatorios")
             return
 
-        if store_password(username, site, password):
-            self.show_popup("Éxito", "Contraseña guardada con éxito")
-            self.username_input.text = ""
-            self.site_input.text = ""
-            self.password_input.text = ""
-        else:
-            self.show_popup("Error", "Error al guardar la contraseña")
+        # Función para guardar/actualizar después de confirmación
+        def perform_save(overwrite=False):
+            try:
+                if store_password(username, site, password):
+                    message = "Contraseña guardada correctamente" if not overwrite else "Contraseña actualizada correctamente"
+                    self.show_popup("Éxito", message)
+                    self.clear_fields()
+                else:
+                    self.show_popup("Error", "No se pudo guardar la contraseña")
+            except Exception as e:
+                self.show_popup("Error", f"Error inesperado: {str(e)}")
 
+        # Verificar si ya existe
+        try:
+            with sqlite3.connect(PASSWD_DB) as conn:
+                c = conn.cursor()
+                c.execute("""SELECT 1 FROM credentials 
+                            WHERE username = ? AND site = ?""",
+                         (username, site))
+                exists = c.fetchone() is not None
+
+            if exists:
+                # Mostrar popup de confirmación
+                content = BoxLayout(orientation='vertical', spacing=10, padding=10)
+                content.add_widget(Label(
+                    text=f"Ya existe una contraseña para:\nUsuario: {username}\nSitio: {site}",
+                    halign='center'
+                ))
+                content.add_widget(Label(
+                    text="¿Desea actualizarla?",
+                    bold=True,
+                    color=(1, 0.5, 0, 1)  # Color naranja
+                ))
+
+                btn_layout = BoxLayout(size_hint_y=None, height=50, spacing=5)
+                btn_si = Button(text="Sí, actualizar")
+                btn_no = Button(text="No, cancelar")
+                
+                btn_si.bind(on_press=lambda x: (popup.dismiss(), perform_save(True)))
+                btn_no.bind(on_press=popup.dismiss)
+                
+                btn_layout.add_widget(btn_no)
+                btn_layout.add_widget(btn_si)
+                content.add_widget(btn_layout)
+
+                popup = Popup(title="Confirmar actualización",
+                             content=content,
+                             size_hint=(0.8, 0.4))
+                popup.open()
+            else:
+                perform_save()
+
+        except Exception as e:
+            self.show_popup("Error", f"Error al verificar credenciales: {str(e)}")
+
+    def clear_fields(self):
+        """Limpia los campos del formulario"""
+        self.username_input.text = ""
+        self.site_input.text = ""
+        self.password_input.text = ""
+        
     def retrieve_password(self, instance):
         username = self.rec_user_input.text
         site = self.rec_site_input.text
@@ -463,14 +731,11 @@ class PasswordManagerApp(App):
             self.show_popup("Error", "Ingrese usuario, sitio y contraseña de administrador")
             return
 
-        if verify_admin_password(admin_password):
-            stored_password = recover_password(username, site, admin_password)
-            if stored_password:
-                self.recover_result_label.text = f"Contraseña recuperada:\n{stored_password}"
-            else:
-                self.recover_result_label.text = "No se encontró la credencial"
+        stored_password = recover_password(username, site, admin_password)
+        if stored_password:
+            self.recover_result_label.text = f"Contraseña recuperada:\n{stored_password}"
         else:
-            self.show_popup("Error", "Contraseña de administrador incorrecta")
+            self.recover_result_label.text = "No se encontró la credencial o contraseña admin incorrecta"
 
     def list_credentials(self, instance):
         admin_password = self.list_admin_input.text
@@ -479,15 +744,16 @@ class PasswordManagerApp(App):
             self.show_popup("Error", "Ingrese la contraseña de administrador")
             return
 
-        if verify_admin_password(admin_password):
-            credentials = list_credentials(admin_password)
-            if credentials:
-                cred_list = "\n".join([f"Usuario: {username}\nSitio: {site}\n" for username, site in credentials])
-                self.cred_display.text = cred_list
-            else:
-                self.cred_display.text = "No hay credenciales almacenadas"
-        else:
+        credentials = list_credentials(admin_password)
+        if credentials is None:
             self.show_popup("Error", "Contraseña de administrador incorrecta")
+            return
+            
+        if credentials:
+            cred_list = "\n".join([f"Usuario: {username}\nSitio: {site}\n" for username, site in credentials])
+            self.cred_display.text = cred_list
+        else:
+            self.cred_display.text = "No hay credenciales almacenadas"
 
     def remove_password(self, instance):
         """Delete a stored credential"""
@@ -499,17 +765,13 @@ class PasswordManagerApp(App):
             self.show_popup("Error", "Todos los campos son obligatorios")
             return
 
-        if not verify_admin_password(admin_password):
-            self.show_popup("Error", "Contraseña de administrador incorrecta")
-            return
-
         if delete_password(username, site, admin_password):
             self.delete_result_label.text = "Credencial eliminada correctamente"
             self.del_user_input.text = ""
             self.del_site_input.text = ""
             self.del_admin_input.text = ""
         else:
-            self.show_popup("Error", "No se pudo eliminar la credencial")
+            self.delete_result_label.text = "No se pudo eliminar la credencial o contraseña admin incorrecta"
 
     def update_cred_display(self, instance, value):
         """Adjust the size of the credentials display label."""
@@ -545,6 +807,6 @@ class PasswordManagerApp(App):
         
         popup.open()
         Clock.schedule_once(lambda dt: popup.dismiss(), timeout)
-        
+
 if __name__ == '__main__':
     PasswordManagerApp().run()
