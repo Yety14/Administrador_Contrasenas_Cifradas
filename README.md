@@ -105,16 +105,25 @@ Para soporte o consultas, abre un issue en el repositorio.
 
 
 
-Me queda mejorar la instalación(q sea un exe y listo) y Autocompletado de Campos:
-Generador de Contraseñas Seguras:
-Exportar e Importar Credenciales:
-Implementar un log:
-Verificación de Seguridad:
+## Me queda mejorar la instalación(q sea un exe y listo) y Autocompletado de Campos:
+
+-Generador de Contraseñas Seguras:
+
+-Exportar e Importar Credenciales:
+
+-Implementar un log:
+
+-Verificación de Seguridad:
 	Implementa una función que verifique si las contraseñas almacenadas han sido comprometidas en violaciones de datos conocidas. Puedes usar APIs de servicios como "Have I Been Pwned" para esto.
-Interfaz de Usuario Mejorada:
+
+-Interfaz de Usuario Mejorada:
 	Mejora la interfaz de usuario con gráficos, iconos más atractivos y una mejor disposición de los elementos. Considera usar un diseño más moderno o incluso un framework de diseño como Material Design.
-Soporte Multilingüe:
-2FA:
-Modo oscuro automatico:
-Análisis de Fuerza de Contraseña:
+
+-Soporte Multilingüe:
+
+-2FA:
+
+-Modo oscuro automatico:
+
+-Análisis de Fuerza de Contraseña:
 	Proporciona un análisis de la fuerza de las contraseñas ingresadas, sugiriendo mejoras si son demasiado débiles.
