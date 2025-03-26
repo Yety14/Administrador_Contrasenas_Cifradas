@@ -25,57 +25,59 @@ try:
     )
 except ImportError as e:
     print(f"Import warning: {e}")
-    # You should implement these functions or keep the original import
-    # For now we'll just raise an error if they're actually used
     def missing_function(*args, **kwargs):
         raise NotImplementedError("Password manager function not available")
-    
     store_password = recover_password = list_credentials = verify_admin_password = delete_password = missing_function
 
-# Local implementation of generate_password if not available from password_manager
 def generate_password(length=16, use_upper=True, use_lower=True, use_numbers=True, use_special=True):
     """Generate a random password with specified characteristics"""
     characters = []
-    
-    if use_upper:
-        characters.extend(string.ascii_uppercase)
-    if use_lower:
-        characters.extend(string.ascii_lowercase)
-    if use_numbers:
-        characters.extend(string.digits)
-    if use_special:
-        characters.extend('!@#$%^&*()_+-=[]{}|;:,.<>?')
-    
+    if use_upper: characters.extend(string.ascii_uppercase)
+    if use_lower: characters.extend(string.ascii_lowercase)
+    if use_numbers: characters.extend(string.digits)
+    if use_special: characters.extend('!@#$%^&*()_+-=[]{}|;:,.<>?')
     if not characters:
         raise ValueError("At least one character type must be selected")
-    
     return ''.join(random.choice(characters) for _ in range(length))
 
 class CustomTabbedPanelItem(TabbedPanelItem):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        label = Label(text=kwargs.get('text', ''), size_hint_x=None)
-        label.bind(size=lambda *x: setattr(self, 'width', label.texture_size[0] + 20))
+        self.padding = [20, 5]  # [horizontal, vertical]
+        label = Label(text=kwargs.get('text', ''), 
+                     size_hint_x=None, 
+                     halign='center',
+                     valign='middle')
+        min_width = max(len(self.text) * 15, 100)
+        label.bind(
+            texture_size=lambda lbl, size: setattr(self, 'width', max(size[0] + 40, min_width)))
         self.add_widget(label)
 
 class PasswordManagerApp(App):
-    
     def build(self):
-        self.tab_panel = TabbedPanel(do_default_tab=False)
-
-        # Add tabs
-        self.tab_panel.add_widget(self.create_save_tab())
-        self.tab_panel.add_widget(self.create_recover_tab())
-        self.tab_panel.add_widget(self.create_list_tab())
-        self.tab_panel.add_widget(self.create_delete_tab())
-
+        self.tab_panel = TabbedPanel(
+            do_default_tab=False,
+            tab_width=120,
+            tab_height=40,
+            background_color=(0.9, 0.9, 0.9, 1)  # Fondo más claro para mejor contraste
+        )
+        
+        tabs = [
+            ('Guardar', self.create_save_tab),
+            ('Recuperar', self.create_recover_tab),
+            ('Listar', self.create_list_tab),
+            ('Eliminar', self.create_delete_tab)
+        ]
+        
+        for text, creator in tabs:
+            tab = creator()
+            tab.text = text
+            self.tab_panel.add_widget(tab)
+            
         return self.tab_panel
 
     def create_save_tab(self):
-        """Create the save password tab with the design from the image."""
-        save_tab = CustomTabbedPanelItem(text='Guardar Contraseña')
-        
-        # Main layout
+        save_tab = CustomTabbedPanelItem()
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
         # Save Password Section
@@ -109,7 +111,6 @@ class PasswordManagerApp(App):
         self.show_pass_checkbox.bind(active=lambda checkbox, value: self.toggle_password_visibility(self.password_input, value))
         show_pass_layout.add_widget(self.show_pass_checkbox)
         pass_layout.add_widget(show_pass_layout)
-        
         save_section.add_widget(pass_layout)
         
         # Save button
@@ -135,23 +136,18 @@ class PasswordManagerApp(App):
         
         # Checkboxes for password options
         options_layout = GridLayout(cols=4, size_hint_y=None, height=40)
-        
         self.uppercase_check = CheckBox(active=True)
         options_layout.add_widget(Label(text="Mayúsculas"))
         options_layout.add_widget(self.uppercase_check)
-        
         self.lowercase_check = CheckBox(active=True)
         options_layout.add_widget(Label(text="Minúsculas"))
         options_layout.add_widget(self.lowercase_check)
-        
         self.numbers_check = CheckBox(active=True)
         options_layout.add_widget(Label(text="Números"))
         options_layout.add_widget(self.numbers_check)
-        
         self.special_check = CheckBox(active=True)
         options_layout.add_widget(Label(text="Especiales"))
         options_layout.add_widget(self.special_check)
-        
         generator_section.add_widget(options_layout)
         
         # Generate button
@@ -162,10 +158,9 @@ class PasswordManagerApp(App):
         main_layout.add_widget(save_section)
         main_layout.add_widget(divider)
         main_layout.add_widget(generator_section)
-        
         save_tab.add_widget(main_layout)
         return save_tab
-
+    
     def create_recover_tab(self):
         """Create the recover password tab."""
         recover_tab = CustomTabbedPanelItem(text='Recuperar Contraseña')
