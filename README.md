@@ -105,7 +105,11 @@ Para soporte o consultas, abre un issue en el repositorio.
 
 
 
-## Me queda mejorar la instalación(q sea un exe y listo) y Autocompletado de Campos:
+### Me queda:
+
+-Mejorar la instalación(q sea un exe y listo)
+
+-Autocompletado de Campos:
 
 -Generador de Contraseñas Seguras:
 
