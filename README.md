@@ -105,29 +105,44 @@ Para soporte o consultas, abre un issue en el repositorio.
 
 
 
-### Me queda:
+# Me queda:
 
--Mejorar la instalación(q sea un exe y listo)
+Mejorar la instalación (que sea un exe y listo)
+	Dificultad: Media
+	Descripción: Utilizar herramientas como PyInstaller o cx_Freeze para empaquetar la aplicación en un ejecutable. Puede requerir ajustes en la configuración y pruebas para asegurar que todas las dependencias se incluyan correctamente.
 
--Autocompletado de Campos:
+Generador de Contraseñas Seguras
+	Dificultad: Baja
+	Descripción: Crear una función que genere contraseñas aleatorias con opciones para incluir caracteres especiales, números y mayúsculas. Esto puede hacerse utilizando la biblioteca random.
 
--Generador de Contraseñas Seguras:
+Exportar e Importar Credenciales
+	Dificultad: Media
+	Descripción: Implementar funciones para exportar las credenciales a un archivo (CSV o JSON) y para importar desde un archivo. Esto requiere manejo de archivos y posiblemente validación de datos.
 
--Exportar e Importar Credenciales:
+Implementar un log
+	Dificultad: Media
+	Descripción: Crear un sistema de registro que almacene eventos importantes (como intentos de inicio de sesión, cambios de contraseña, etc.). Esto puede hacerse utilizando la biblioteca logging de Python.
 
--Implementar un log:
+Verificación de Seguridad
+	Dificultad: Media
+	Descripción: Integrar una API como "Have I Been Pwned" para verificar si las contraseñas han sido comprometidas. Esto implica hacer solicitudes HTTP y manejar respuestas JSON.
 
--Verificación de Seguridad:
-	Implementa una función que verifique si las contraseñas almacenadas han sido comprometidas en violaciones de datos conocidas. Puedes usar APIs de servicios como "Have I Been Pwned" para esto.
+Interfaz de Usuario Mejorada
+	Dificultad: Alta
+	Descripción: Rediseñar la interfaz utilizando gráficos, iconos atractivos y una mejor disposición de los elementos. Esto puede requerir un cambio significativo en el diseño y posiblemente el uso de un framework de diseño como Material Design.
 
--Interfaz de Usuario Mejorada:
-	Mejora la interfaz de usuario con gráficos, iconos más atractivos y una mejor disposición de los elementos. Considera usar un diseño más moderno o incluso un framework de diseño como Material Design.
+Soporte Multilingüe
+	Dificultad: Media
+	Descripción: Implementar un sistema que permita la traducción de la interfaz a diferentes idiomas. Esto puede hacerse utilizando archivos de recursos o bibliotecas como gettext.
 
--Soporte Multilingüe:
+2FA (Autenticación de Dos Factores)
+	Dificultad: Alta
+	Descripción: Implementar un sistema de autenticación de dos factores, que puede incluir el uso de aplicaciones de autenticación o SMS. Esto requiere una comprensión de la seguridad y posiblemente la integración con servicios externos.
 
--2FA:
+Modo oscuro automático
+	Dificultad: Media
+	Descripción: Implementar un modo oscuro que se active automáticamente según la hora del día o la configuración del sistema operativo. Esto implica cambios en la lógica de la interfaz y posiblemente el uso de bibliotecas adicionales.
 
--Modo oscuro automatico:
-
--Análisis de Fuerza de Contraseña:
-	Proporciona un análisis de la fuerza de las contraseñas ingresadas, sugiriendo mejoras si son demasiado débiles.
+Análisis de Fuerza de Contraseña
+	Dificultad: Media
+	Descripción: Crear una función que evalúe la fuerza de las contraseñas ingresadas y sugiera mejoras. Esto puede hacerse utilizando reglas simples (longitud, variedad de caracteres) y puede requerir pruebas adicionales.

@@ -1,5 +1,6 @@
 import os
-import json  # Importar el módulo json
+import json
+import re  # Added import for regular expressions
 import tkinter as tk
 from tkinter import messagebox, ttk, simpledialog, font
 import sqlite3
@@ -27,6 +28,7 @@ class PasswordManagerGUI:
         self.root = root
         self.root.title("Gestor de Contraseñas Seguro")
         self.root.geometry("900x700")
+        self.strength_label = None       
         
         # Configuraciones de tema y personalización
         self.current_theme = tk.StringVar(value="light")
@@ -298,7 +300,7 @@ class PasswordManagerGUI:
             self.root.destroy()
 
     def create_save_tab(self):
-        """Pestaña para guardar/actualizar contraseñas con diseño mejorado"""
+        """Pestaña para guardar/actualizar contraseñas con diseño mejorado y verificación de seguridad"""
         tab = ttk.Frame(self.notebook, padding="20 20 20 20")
         self.notebook.add(tab, text=" 💾 Guardar/Actualizar ")
 
@@ -329,11 +331,75 @@ class PasswordManagerGUI:
             
             tab.columnconfigure(1, weight=1)
 
+        # Botón de verificar seguridad de contraseña
+        check_strength_btn = ttk.Button(tab, text="🛡️ Verificar Seguridad", command=self.check_password_strength)
+        check_strength_btn.grid(row=len(fields)+1, column=0, columnspan=3, pady=10)
+
+        # Etiqueta para mostrar resultados de seguridad
+        self.strength_label = ttk.Label(tab, text="", font=self.custom_font, wraplength=400)
+        self.strength_label.grid(row=len(fields)+2, column=0, columnspan=3, pady=10)
+
         # Botón de guardar con estilo
         save_btn = ttk.Button(tab, text="💾 Guardar", command=self.save_password)
-        save_btn.grid(row=len(fields)+1, column=0, columnspan=3, pady=20)
+        save_btn.grid(row=len(fields)+3, column=0, columnspan=3, pady=20)
         
         self.pass_entry.bind("<Return>", lambda event: self.save_password())
+    
+    def check_password_strength(self):
+        """Evalúa la fortaleza de la contraseña y proporciona retroalimentación"""
+        password = self.pass_entry.get()
+
+        if not password:
+            # Usar un color que sea visible en ambos modos
+            self.strength_label.config(text="❌ Ingrese una contraseña", foreground="#FF4444")
+            return
+
+        # Criterios de seguridad
+        criteria = [
+            (len(password) >= 12, "Longitud mínima de 12 caracteres"),
+            (re.search(r'[A-Z]', password), "Contiene mayúsculas"),
+            (re.search(r'[a-z]', password), "Contiene minúsculas"),
+            (re.search(r'\d', password), "Contiene números"),
+            (re.search(r'[!@#$%^&*(),.?":{}|<>]', password), "Contiene caracteres especiales")
+        ]
+
+        # Calcular puntaje de seguridad
+        strength_score = sum(1 for met, _ in criteria if met)
+        
+        # Definir colores que sean visibles en ambos modos
+        color_map = {
+            2: "#DC3545",  # Rojo brillante para muy débil
+            3: "#FFA500",  # Naranja para débil
+            4: "#28A745",  # Verde para moderado
+            5: "#218838"   # Verde oscuro para fuerte
+        }
+        
+        # Determinar nivel de seguridad
+        if strength_score <= 2:
+            level = "Muy Débil"
+            advice = "La contraseña es muy vulnerable. "
+        elif strength_score <= 3:
+            level = "Débil"
+            advice = "La contraseña necesita mejoras. "
+        elif strength_score <= 4:
+            level = "Moderada"
+            advice = "Contraseña aceptable, pero puede mejorarse. "
+        else:
+            level = "Fuerte"
+            advice = "¡Excelente contraseña! "
+
+        # Generar mensaje detallado
+        unmet_criteria = [msg for met, msg in criteria if not met]
+        
+        if unmet_criteria:
+            advice += "Mejore agregando: " + ", ".join(unmet_criteria)
+
+        # Mostrar resultado con colores definidos
+        result_text = f"🔒 Nivel de Seguridad: {level}\n{advice}"
+        self.strength_label.config(
+            text=result_text, 
+            foreground=color_map.get(strength_score, "#DC3545")
+        )
 
     def create_recover_tab(self):
         """Pestaña para recuperar contraseñas con diseño mejorado"""
