@@ -22,18 +22,82 @@ class PasswordManagerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Gestor de Contraseñas Seguro")
-        self.root.geometry("800x600")
+        self.root.geometry("900x700")
+        self.configure_styles()
         self.setup_ui()
         
         if not os.path.exists(PASSWD_DB):
             self.setup_admin_password()
 
+    def configure_styles(self):
+        """Configura estilos modernos para la aplicación"""
+        style = ttk.Style()
+        style.theme_use('clam')  # Modern theme
+
+        # Color palette
+        bg_color = '#f0f0f0'
+        primary_color = '#3498db'
+        secondary_color = '#2ecc71'
+        text_color = '#2c3e50'
+        
+        # Configure root
+        self.root.configure(bg=bg_color)
+
+        # Notebook style
+        style.configure('TNotebook', background=bg_color)
+        style.map('TNotebook.Tab', 
+            background=[('selected', primary_color), ('!selected', '#bdc3c7')],
+            foreground=[('selected', 'white'), ('!selected', text_color)]
+        )
+
+        # Button styles
+        style.configure('TButton', 
+            font=('Arial', 10, 'bold'),
+            background=primary_color,
+            foreground='white',
+            padding=10
+        )
+        style.map('TButton',
+            background=[('active', secondary_color)]
+        )
+
+        # Entry styles
+        style.configure('TEntry', 
+            font=('Arial', 10),
+            padding=5
+        )
+
+        # Label styles
+        style.configure('TLabel', 
+            font=('Arial', 10, 'bold'),
+            background=bg_color,
+            foreground=text_color
+        )
+
+        # Treeview styles
+        style.configure('Treeview', 
+            background='white',
+            foreground=text_color,
+            rowheight=25,
+            font=('Arial', 10)
+        )
+        style.configure('Treeview.Heading', 
+            font=('Arial', 10, 'bold'),
+            background=primary_color,
+            foreground='white'
+        )
+
     def setup_ui(self):
-        """Configura la interfaz de usuario principal"""
-        self.notebook = ttk.Notebook(self.root)
+        """Configura la interfaz de usuario principal con un diseño mejorado"""
+        # Frame principal con un poco de padding
+        main_frame = ttk.Frame(self.root, padding="20 20 20 20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Notebook con apariencia moderna
+        self.notebook = ttk.Notebook(main_frame, style='TNotebook')
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
-        # Crear pestañas
+        # Crear pestañas con un diseño más atractivo
         self.create_save_tab()
         self.create_recover_tab()
         self.create_list_tab()
@@ -54,45 +118,53 @@ class PasswordManagerGUI:
             self.root.destroy()
 
     def create_save_tab(self):
-        """Pestaña para guardar/actualizar contraseñas"""
-        tab = ttk.Frame(self.notebook)
-        self.notebook.add(tab, text="Guardar/Actualizar")
+        """Pestaña para guardar/actualizar contraseñas con diseño mejorado"""
+        tab = ttk.Frame(self.notebook, padding="20 20 20 20")
+        self.notebook.add(tab, text=" 💾 Guardar/Actualizar ")
+
+        # Título de sección
+        ttk.Label(tab, text="Guardar Nueva Contraseña", 
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
 
         # Campos de entrada
         fields = [
-            ("Usuario:", "user_entry"),
-            ("Sitio/Aplicación:", "site_entry"),
-            ("Contraseña:", "pass_entry", True)
+            ("👤 Usuario:", "user_entry"),
+            ("🌐 Sitio/Aplicación:", "site_entry"),
+            ("🔐 Contraseña:", "pass_entry", True)
         ]
         
-        for i, (label, attr, *options) in enumerate(fields):
+        for i, (label, attr, *options) in enumerate(fields, start=1):
             ttk.Label(tab, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="e")
-            entry = ttk.Entry(tab, show="*" if options else "")
+            entry = ttk.Entry(tab, show="*" if options else "", width=40)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
             tab.columnconfigure(1, weight=1)
 
-        ttk.Button(tab, text="Guardar", command=self.save_password).grid(
-            row=len(fields), column=0, columnspan=2, pady=10)
+        # Botón de guardar con estilo
+        save_btn = ttk.Button(tab, text="💾 Guardar", command=self.save_password)
+        save_btn.grid(row=len(fields)+1, column=0, columnspan=2, pady=20)
         
         self.pass_entry.bind("<Return>", lambda event: self.save_password())
 
-
     def create_recover_tab(self):
-        """Pestaña para recuperar contraseñas"""
-        tab = ttk.Frame(self.notebook)
-        self.notebook.add(tab, text="Recuperar")
+        """Pestaña para recuperar contraseñas con diseño mejorado"""
+        tab = ttk.Frame(self.notebook, padding="20 20 20 20")
+        self.notebook.add(tab, text=" 🔍 Recuperar ")
+
+        # Título de sección
+        ttk.Label(tab, text="Recuperar Contraseña", 
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
 
         # Campos de entrada
         fields = [
-            ("Usuario:", "rec_user_entry"),
-            ("Sitio/Aplicación:", "rec_site_entry"),
-            ("Contraseña Admin:", "admin_pass_entry", True)
+            ("👤 Usuario:", "rec_user_entry"),
+            ("🌐 Sitio/Aplicación:", "rec_site_entry"),
+            ("🔒 Contraseña Admin:", "admin_pass_entry", True)
         ]
         
-        for i, (label, attr, *options) in enumerate(fields):
+        for i, (label, attr, *options) in enumerate(fields, start=1):
             ttk.Label(tab, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="e")
-            entry = ttk.Entry(tab, show="*" if options else "")
+            entry = ttk.Entry(tab, show="*" if options else "", width=40)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
             tab.columnconfigure(1, weight=1)
@@ -101,58 +173,70 @@ class PasswordManagerGUI:
         ttk.Label(tab, textvariable=self.result_var, wraplength=300).grid(
             row=len(fields)+1, column=0, columnspan=2, pady=10)
 
-        ttk.Button(tab, text="Recuperar", command=self.recover_password).grid(
-            row=len(fields), column=0, columnspan=2, pady=10)
+        recover_btn = ttk.Button(tab, text="🔍 Recuperar", command=self.recover_password)
+        recover_btn.grid(row=len(fields)+2, column=0, columnspan=2, pady=20)
+        
         self.admin_pass_entry.bind("<Return>", lambda event: self.recover_password())
 
     def create_list_tab(self):
-        """Pestaña para listar credenciales"""
-        tab = ttk.Frame(self.notebook)
-        self.notebook.add(tab, text="Listar")
+        """Pestaña para listar credenciales con diseño mejorado"""
+        tab = ttk.Frame(self.notebook, padding="20 20 20 20")
+        self.notebook.add(tab, text=" 📋 Listar ")
 
-        ttk.Label(tab, text="Contraseña Admin:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
-        self.list_admin_entry = ttk.Entry(tab, show="*")
-        self.list_admin_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+        # Título de sección
+        ttk.Label(tab, text="Listar Credenciales", 
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
 
-        # Treeview para mostrar credenciales
-        self.tree = ttk.Treeview(tab, columns=("Usuario", "Sitio"), show="headings")
-        self.tree.heading("Usuario", text="Usuario")
-        self.tree.heading("Sitio", text="Sitio/Aplicación")
-        self.tree.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        ttk.Label(tab, text="🔒 Contraseña Admin:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        self.list_admin_entry = ttk.Entry(tab, show="*", width=40)
+        self.list_admin_entry.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+
+        # Treeview con estilo mejorado
+        self.tree = ttk.Treeview(tab, columns=("Usuario", "Sitio"), show="headings", height=10)
+        self.tree.heading("Usuario", text="👤 Usuario")
+        self.tree.heading("Sitio", text="🌐 Sitio/Aplicación")
+        self.tree.column("Usuario", width=200)
+        self.tree.column("Sitio", width=300)
+        self.tree.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(tab, orient="vertical", command=self.tree.yview)
-        scrollbar.grid(row=1, column=2, sticky="ns")
+        scrollbar.grid(row=2, column=2, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
 
-        ttk.Button(tab, text="Mostrar Credenciales", command=self.list_passwords).grid(
-            row=2, column=0, columnspan=2, pady=10)
+        list_btn = ttk.Button(tab, text="📋 Mostrar Credenciales", command=self.list_passwords)
+        list_btn.grid(row=3, column=0, columnspan=2, pady=20)
 
         tab.columnconfigure(1, weight=1)
-        tab.rowconfigure(1, weight=1)
+        tab.rowconfigure(2, weight=1)
         self.list_admin_entry.bind("<Return>", lambda event: self.list_passwords())
 
     def create_delete_tab(self):
-        """Pestaña para eliminar credenciales"""
-        tab = ttk.Frame(self.notebook)
-        self.notebook.add(tab, text="Eliminar")
+        """Pestaña para eliminar credenciales con diseño mejorado"""
+        tab = ttk.Frame(self.notebook, padding="20 20 20 20")
+        self.notebook.add(tab, text=" ❌ Eliminar ")
+
+        # Título de sección
+        ttk.Label(tab, text="Eliminar Credencial", 
+                  font=('Arial', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0,20))
 
         # Campos de entrada
         fields = [
-            ("Usuario:", "del_user_entry"),
-            ("Sitio/Aplicación:", "del_site_entry"),
-            ("Contraseña Admin:", "del_admin_entry", True)
+            ("👤 Usuario:", "del_user_entry"),
+            ("🌐 Sitio/Aplicación:", "del_site_entry"),
+            ("🔒 Contraseña Admin:", "del_admin_entry", True)
         ]
         
-        for i, (label, attr, *options) in enumerate(fields):
+        for i, (label, attr, *options) in enumerate(fields, start=1):
             ttk.Label(tab, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="e")
-            entry = ttk.Entry(tab, show="*" if options else "")
+            entry = ttk.Entry(tab, show="*" if options else "", width=40)
             entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             setattr(self, attr, entry)
             tab.columnconfigure(1, weight=1)
 
-        ttk.Button(tab, text="Eliminar", command=self.remove_password).grid(
-            row=len(fields), column=0, columnspan=2, pady=10)
+        delete_btn = ttk.Button(tab, text="❌ Eliminar", command=self.remove_password)
+        delete_btn.grid(row=len(fields)+1, column=0, columnspan=2, pady=20)
+        
         self.del_admin_entry.bind("<Return>", lambda event: self.remove_password())
 
     def verify_admin_password_gui(self, attempt):
@@ -223,8 +307,8 @@ class PasswordManagerGUI:
         if stored_password:
             # Mostrar la contraseña recuperada en un diálogo seguro
             messagebox.showinfo("Contraseña Recuperada", 
-                            f"Contraseña para --{username}-- en --{site}-- recuperada exitosamente.\n"
-                            f"Contraseña: {stored_password}\n\n"
+                            f"Contraseña para --{username}-- en --{site}-- recuperada exitosamente.\n\n"
+                            f"Contraseña:   {stored_password}\n\n\n"
                             "La contraseña se ha copiado al portapapeles para su uso.")
         
             # Copiar al portapapeles para mayor seguridad
