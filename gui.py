@@ -1,11 +1,14 @@
 import os
 import json
-import re  # Added import for regular expressions
+import re
 import tkinter as tk
 from tkinter import messagebox, ttk, simpledialog, font
 import sqlite3
 from datetime import datetime
+import secrets
+import string
 
+# Este módulo se asume que existe con las funciones de manejo de base de datos
 from password_manager import (
     ensure_passwd_dir, 
     init_database, 
@@ -339,12 +342,105 @@ class PasswordManagerGUI:
         self.strength_label = ttk.Label(tab, text="", font=self.custom_font, wraplength=400)
         self.strength_label.grid(row=len(fields)+2, column=0, columnspan=3, pady=10)
 
+        # Área para generador de contraseñas
+        gen_frame = ttk.LabelFrame(tab, text="🔐 Generador de Contraseñas", padding="10 10 10 10")
+        gen_frame.grid(row=len(fields)+3, column=0, columnspan=3, pady=10, sticky="ew")
+
+        # Controles de generación de contraseña
+        ttk.Label(gen_frame, text="Longitud:", font=self.custom_font).grid(row=0, column=0, padx=5, pady=5)
+        self.length_var = tk.IntVar(value=16)
+        length_spinbox = ttk.Spinbox(gen_frame, from_=8, to=32, textvariable=self.length_var, width=5)
+        length_spinbox.grid(row=0, column=1, padx=5, pady=5)
+
+        # Checkboxes para tipos de caracteres
+        self.include_uppercase = tk.BooleanVar(value=True)
+        self.include_lowercase = tk.BooleanVar(value=True)
+        self.include_digits = tk.BooleanVar(value=True)
+        self.include_special = tk.BooleanVar(value=True)
+
+        checks = [
+            ("Mayúsculas", self.include_uppercase),
+            ("Minúsculas", self.include_lowercase),
+            ("Números", self.include_digits),
+            ("Especiales", self.include_special)
+        ]
+
+        for i, (label, var) in enumerate(checks):
+            ttk.Checkbutton(gen_frame, text=label, variable=var, 
+                            style='TCheckbutton', 
+                            command=self.validate_character_types).grid(row=0, column=i+2, padx=5, pady=5)
+
+        # Botón de generar contraseña
+        gen_btn = ttk.Button(gen_frame, text="🎲 Generar", command=self.generate_password)
+        gen_btn.grid(row=1, column=0, columnspan=5, pady=10)
+
         # Botón de guardar con estilo
         save_btn = ttk.Button(tab, text="💾 Guardar", command=self.save_password)
-        save_btn.grid(row=len(fields)+3, column=0, columnspan=3, pady=20)
+        save_btn.grid(row=len(fields)+4, column=0, columnspan=3, pady=20)
         
         self.pass_entry.bind("<Return>", lambda event: self.save_password())
-    
+
+    def validate_character_types(self):
+        """Ensures at least one character type is selected"""
+        if not any([
+            self.include_uppercase.get(), 
+            self.include_lowercase.get(), 
+            self.include_digits.get(), 
+            self.include_special.get()
+        ]):
+            messagebox.showwarning("Advertencia", "Debe seleccionar al menos un tipo de carácter")
+            # Revert the last change by setting the last clicked checkbox to True
+            self.include_lowercase.set(True)
+
+    def generate_password(self):
+        """Generates a secure random password based on user preferences"""
+        # Define character sets
+        uppercase = string.ascii_uppercase
+        lowercase = string.ascii_lowercase
+        digits = string.digits
+        special_chars = string.punctuation
+
+        # Collect selected character types
+        char_sets = []
+        if self.include_uppercase.get():
+            char_sets.append(uppercase)
+        if self.include_lowercase.get():
+            char_sets.append(lowercase)
+        if self.include_digits.get():
+            char_sets.append(digits)
+        if self.include_special.get():
+            char_sets.append(special_chars)
+
+        # Validate at least one set is selected
+        if not char_sets:
+            messagebox.showerror("Error", "Seleccione al menos un tipo de carácter")
+            return
+
+        # Combine selected character sets
+        all_chars = ''.join(char_sets)
+
+        # Ensure at least one character from each selected set is included
+        password = []
+        for char_set in char_sets:
+            password.append(secrets.choice(char_set))
+
+        # Fill the rest of the password with random characters
+        remaining_length = self.length_var.get() - len(password)
+        password.extend(secrets.choice(all_chars) for _ in range(remaining_length))
+
+        # Shuffle the password to randomize the position of mandatory characters
+        secrets.SystemRandom().shuffle(password)
+
+        # Convert to string
+        generated_password = ''.join(password)
+
+        # Set the generated password in the entry field
+        self.pass_entry.delete(0, tk.END)
+        self.pass_entry.insert(0, generated_password)
+
+        # Automatically check password strength
+        self.check_password_strength()
+
     def check_password_strength(self):
         """Evalúa la fortaleza de la contraseña y proporciona retroalimentación"""
         password = self.pass_entry.get()
@@ -401,6 +497,8 @@ class PasswordManagerGUI:
             foreground=color_map.get(strength_score, "#DC3545")
         )
 
+    # ... [rest of the methods remain the same as in the previous implementation]
+
     def create_recover_tab(self):
         """Pestaña para recuperar contraseñas con diseño mejorado"""
         tab = ttk.Frame(self.notebook, padding="20 20 20 20")
@@ -441,6 +539,8 @@ class PasswordManagerGUI:
         recover_btn.grid(row=len(fields)+2, column=0, columnspan=3, pady=20)
         
         self.admin_pass_entry.bind("<Return>", lambda event: self.recover_password())
+
+    # ... [the rest of the methods from the previous implementation remain the same]
 
     def create_list_tab(self):
         """Pestaña para listar credenciales con diseño mejorado"""
