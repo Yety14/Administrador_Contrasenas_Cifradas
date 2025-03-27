@@ -1,2 +1,5 @@
 /passwd
 config.ini
+/build
+PasswordManager.spec
+/__pycache__
