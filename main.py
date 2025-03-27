@@ -15,6 +15,11 @@ from kivy.core.window import Window
 from kivy.base import EventLoop
 from kivy.metrics import dp
 from kivy.uix.spinner import Spinner
+import shutil
+from kivy.uix.popup import Popup
+from kivy.uix.label import Label
+from kivy.uix.button import Button
+from kivy.uix.boxlayout import BoxLayout
 import random
 from kivy.uix.floatlayout import FloatLayout
 import string
@@ -117,21 +122,38 @@ def verify_admin_password(attempt):
     
     return hmac.compare_digest(stored_hash, attempt_hash)
 
-def store_password(username, site, password):
+def store_password(username, site, password, overwrite=False):
     """Almacena una nueva contraseña o actualiza una existente"""
     encrypted_pw = encrypt_password(password)
     try:
-        conn = sqlite3.connect(PASSWD_DB)
-        c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO credentials (username, site, encrypted_password) VALUES (?, ?, ?)",
-                 (username, site, encrypted_pw))
-        conn.commit()
-        return True
-    except Exception as e:
-        print(f"Error storing password: {e}")
+        with sqlite3.connect(PASSWD_DB) as conn:
+            c = conn.cursor()
+            
+            if overwrite:
+                # Sobrescribir la contraseña
+                c.execute("UPDATE credentials SET encrypted_password = ? WHERE username = ? AND site = ?", 
+                          (encrypted_pw, username, site))
+                conn.commit()
+                return True  # Indicar que la contraseña fue actualizada
+            
+            # Verificar si ya existe la combinación de usuario y sitio
+            c.execute("SELECT 1 FROM credentials WHERE username = ? AND site = ?", (username, site))
+            exists = c.fetchone() is not None
+            
+            if exists:
+                return None  # Indicar que ya existe y requiere confirmación
+            
+            # Insertar nueva contraseña
+            c.execute("INSERT INTO credentials (username, site, encrypted_password) VALUES (?, ?, ?)",
+                      (username, site, encrypted_pw))
+            conn.commit()
+            return True  # Indicar que la contraseña fue guardada
+    except sqlite3.Error as e:
+        print(f"Error al guardar la contraseña en la base de datos: {e}")
         return False
-    finally:
-        conn.close()
+    except Exception as e:
+        print(f"Error inesperado: {e}")
+        return False
 
 def recover_password(username, site, admin_password):
     """Recupera una contraseña almacenada"""
@@ -495,7 +517,6 @@ class PasswordManagerApp(App):
             # Eliminamos la carpeta passwd si existe
             try:
                 if os.path.exists(PASSWD_DIR):
-                    import shutil
                     shutil.rmtree(PASSWD_DIR)
             except Exception as e:
                 print(f"Error al eliminar directorio: {e}")
@@ -848,58 +869,49 @@ class PasswordManagerApp(App):
 
         # Función para guardar/actualizar después de confirmación
         def perform_save(overwrite=False):
-            try:
-                if store_password(username, site, password):
-                    message = "Contraseña guardada correctamente" if not overwrite else "Contraseña actualizada correctamente"
-                    self.show_popup("Éxito", message)
-                    self.clear_fields()
-                else:
-                    self.show_popup("Error", "No se pudo guardar la contraseña")
-            except Exception as e:
-                self.show_popup("Error", f"Error inesperado: {str(e)}")
-
-        # Verificar si ya existe
-        try:
-            with sqlite3.connect(PASSWD_DB) as conn:
-                c = conn.cursor()
-                c.execute("""SELECT 1 FROM credentials 
-                            WHERE username = ? AND site = ?""",
-                         (username, site))
-                exists = c.fetchone() is not None
-
-            if exists:
-                # Mostrar popup de confirmación
-                content = BoxLayout(orientation='vertical', spacing=10, padding=10)
-                content.add_widget(Label(
-                    text=f"Ya existe una contraseña para:\nUsuario: {username}\nSitio: {site}",
-                    halign='center'
-                ))
-                content.add_widget(Label(
-                    text="¿Desea actualizarla?",
-                    bold=True,
-                    color=(1, 0.5, 0, 1)  # Color naranja
-                ))
-
-                btn_layout = BoxLayout(size_hint_y=None, height=50, spacing=5)
-                btn_si = Button(text="Sí, actualizar")
-                btn_no = Button(text="No, cancelar")
-                
-                btn_si.bind(on_press=lambda x: (popup.dismiss(), perform_save(True)))
-                btn_no.bind(on_press=popup.dismiss)
-                
-                btn_layout.add_widget(btn_no)
-                btn_layout.add_widget(btn_si)
-                content.add_widget(btn_layout)
-
-                popup = Popup(title="Confirmar actualización",
-                             content=content,
-                             size_hint=(0.8, 0.4))
-                popup.open()
+            result = store_password(username, site, password, overwrite)
+            if result is True:
+                message = "Contraseña guardada correctamente" if not overwrite else "Contraseña actualizada correctamente"
+                self.show_popup("Éxito", message)
+                self.clear_fields()
+            elif result is None:
+                # Ya existe, mostrar popup de confirmación
+                show_overwrite_popup()
             else:
-                perform_save()
+                self.show_popup("Error", "No se pudo guardar la contraseña")
 
-        except Exception as e:
-            self.show_popup("Error", f"Error al verificar credenciales: {str(e)}")
+        # Mostrar popup de confirmación si ya existe
+        def show_overwrite_popup():
+            content = BoxLayout(orientation='vertical', spacing=10, padding=10)
+            content.add_widget(Label(
+                text=f"Ya existe una contraseña para:\nUsuario: {username}\nSitio: {site}",
+                halign='center'
+            ))
+            content.add_widget(Label(
+                text="¿Desea actualizarla?",
+                bold=True,
+                color=(1, 0.5, 0, 1)  # Color naranja
+            ))
+
+            btn_layout = BoxLayout(size_hint_y=None, height=50, spacing=5)
+            btn_si = Button(text="Sí, actualizar")
+            btn_no = Button(text="No, cancelar")
+            
+            popup = Popup(title="Confirmar actualización",
+                          content=content,
+                          size_hint=(0.8, 0.4))
+
+            btn_si.bind(on_press=lambda x: (popup.dismiss(), perform_save(True)))
+            btn_no.bind(on_press=popup.dismiss)
+            
+            btn_layout.add_widget(btn_no)
+            btn_layout.add_widget(btn_si)
+            content.add_widget(btn_layout)
+
+            popup.open()
+
+        # Intentar guardar la contraseña
+        perform_save()
 
     def clear_fields(self):
         """Limpia los campos del formulario"""
