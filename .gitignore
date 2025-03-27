@@ -3,3 +3,4 @@ config.ini
 /build
 PasswordManager.spec
 /__pycache__
+/venv
