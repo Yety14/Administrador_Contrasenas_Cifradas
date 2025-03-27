@@ -17,8 +17,9 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 ; Incluye el ejecutable del lanzador y los archivos necesarios
 Source: "dist\Launcher\Launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "main.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "password_manager.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\code\main.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\code\password_manager.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\code\password_manager.kv"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Crear accesos directos en el menú de inicio y escritorio

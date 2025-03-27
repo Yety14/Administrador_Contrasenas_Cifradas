@@ -12,7 +12,7 @@ def main():
         current_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Construir la ruta al script main.py
-    main_script = os.path.join(current_dir, 'main.py')
+    main_script = os.path.join(current_dir, '../../code/main.py')
     
     # Verificar que el archivo main.py exista
     if not os.path.exists(main_script):

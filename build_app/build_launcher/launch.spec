@@ -7,8 +7,8 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('main.py', '.'),
-        ('password_manager.py', '.'),
+        ('../../code/main.py', '.'),
+        ('../../code/password_manager.py', '.'),
     ],
     hiddenimports=[],
     hookspath=[],
