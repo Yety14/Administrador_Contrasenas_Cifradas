@@ -5,3 +5,4 @@ config.ini
 PasswordManager.spec
 /__pycache__
 /dist
+/build_app

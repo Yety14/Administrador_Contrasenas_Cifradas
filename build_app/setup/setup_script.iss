@@ -1,5 +1,4 @@
 [Setup]
-; Información básica del instalador
 AppName=Password Manager
 AppVersion=1.0
 DefaultDirName={pf}\PasswordManager
@@ -14,22 +13,32 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Files]
-; Incluye el ejecutable del lanzador y los archivos necesarios
-Source: "dist\Launcher\Launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\code\main.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\code\password_manager.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\code\password_manager.kv"; DestDir: "{app}"; Flags: ignoreversion
+; Python embebido base (sin site-packages)
+Source: "..\python-3.11.9-embed-amd64\*"; DestDir: "{app}\Python"; Excludes: "Lib\site-packages\*"; Flags: ignoreversion recursesubdirs
+
+; ----- Dependencias principales -----
+; Cryptography y dependencias obligatorias
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cryptography\*"; DestDir: "{app}\Python\Lib\site-packages\cryptography"; Flags: ignoreversion recursesubdirs
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cffi\*"; DestDir: "{app}\Python\Lib\site-packages\cffi"; Flags: ignoreversion recursesubdirs
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\pycparser\*"; DestDir: "{app}\Python\Lib\site-packages\pycparser"; Flags: ignoreversion recursesubdirs
+
+; Kivy y dependencias esenciales
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\kivy\*"; DestDir: "{app}\Python\Lib\site-packages\kivy"; Flags: ignoreversion recursesubdirs
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\certifi\*"; DestDir: "{app}\Python\Lib\site-packages\certifi"; Flags: ignoreversion recursesubdirs
+
+; ----- Metadatos específicos -----
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cryptography-*.dist-info\*"; DestDir: "{app}\Python\Lib\site-packages"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\kivy-*.dist-info\*"; DestDir: "{app}\Python\Lib\site-packages"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+
+; ----- Archivos críticos del sistema -----
+Source: "..\python-3.11.9-embed-amd64\python311._pth"; DestDir: "{app}\Python"; Flags: ignoreversion
 
 [Icons]
-; Crear accesos directos en el menú de inicio y escritorio
 Name: "{group}\Password Manager"; Filename: "{app}\Launcher.exe"
 Name: "{commondesktop}\Password Manager"; Filename: "{app}\Launcher.exe"; Tasks: desktopicon
 
 [Tasks]
-; Tareas opcionales durante la instalación
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
-; Ejecuta la aplicación después de la instalación
 Filename: "{app}\Launcher.exe"; Description: "{cm:LaunchProgram,Password Manager}"; Flags: nowait postinstall skipifsilent
