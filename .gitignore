@@ -1,2 +1,6 @@
 /passwd
-config.json
+config.ini
+/build
+PasswordManager.spec
+/__pycache__
+/venv
