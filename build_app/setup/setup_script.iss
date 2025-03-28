@@ -14,24 +14,25 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Files]
 ; Python embebido base (sin site-packages)
-Source: "..\python-3.11.9-embed-amd64\*"; DestDir: "{app}\Python"; Excludes: "Lib\site-packages\*"; Flags: ignoreversion recursesubdirs
+Source: "..\python-3.11.9-embed-amd64\*"; DestDir: "{app}\Python";  Flags: ignoreversion recursesubdirs
+Source: "..\..\dist\Launcher\Launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-; ----- Dependencias principales -----
+; ----- Dependencias principales -----    Excludes: "Lib\site-packages\*";
 ; Cryptography y dependencias obligatorias
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cryptography\*"; DestDir: "{app}\Python\Lib\site-packages\cryptography"; Flags: ignoreversion recursesubdirs
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cffi\*"; DestDir: "{app}\Python\Lib\site-packages\cffi"; Flags: ignoreversion recursesubdirs
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\pycparser\*"; DestDir: "{app}\Python\Lib\site-packages\pycparser"; Flags: ignoreversion recursesubdirs
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cryptography\*"; DestDir: "{app}\Python\Lib\site-packages\cryptography"; Flags: ignoreversion recursesubdirs
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cffi\*"; DestDir: "{app}\Python\Lib\site-packages\cffi"; Flags: ignoreversion recursesubdirs
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\pycparser\*"; DestDir: "{app}\Python\Lib\site-packages\pycparser"; Flags: ignoreversion recursesubdirs
 
 ; Kivy y dependencias esenciales
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\kivy\*"; DestDir: "{app}\Python\Lib\site-packages\kivy"; Flags: ignoreversion recursesubdirs
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\certifi\*"; DestDir: "{app}\Python\Lib\site-packages\certifi"; Flags: ignoreversion recursesubdirs
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\kivy\*"; DestDir: "{app}\Python\Lib\site-packages\kivy"; Flags: ignoreversion recursesubdirs
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\certifi\*"; DestDir: "{app}\Python\Lib\site-packages\certifi"; Flags: ignoreversion recursesubdirs
 
 ; ----- Metadatos específicos -----
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cryptography-*.dist-info\*"; DestDir: "{app}\Python\Lib\site-packages"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
-Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\kivy-*.dist-info\*"; DestDir: "{app}\Python\Lib\site-packages"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\cryptography-*.dist-info\*"; DestDir: "{app}\Python\Lib\site-packages"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+;Source: "..\python-3.11.9-embed-amd64\Lib\site-packages\kivy-*.dist-info\*"; DestDir: "{app}\Python\Lib\site-packages"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 ; ----- Archivos críticos del sistema -----
-Source: "..\python-3.11.9-embed-amd64\python311._pth"; DestDir: "{app}\Python"; Flags: ignoreversion
+;Source: "..\python-3.11.9-embed-amd64\python311._pth"; DestDir: "{app}\Python"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Password Manager"; Filename: "{app}\Launcher.exe"
