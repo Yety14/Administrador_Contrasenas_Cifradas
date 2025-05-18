@@ -6,3 +6,5 @@ PasswordManager.spec
 /__pycache__
 /dist
 /build_app
+code/passwd/passwords.db
+code/passwd/secret.key
